@@ -115,9 +115,17 @@ jobs:
           DIGEST: ${{ steps.build-gateway.outputs.digest }}
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          while IFS= read -r tag; do
-            cosign sign --yes "${tag}@${DIGEST}"
-          done <<< "${TAGS}"
+          sign_digest() {
+            image="$1"
+            for attempt in 1 2 3; do
+              cosign sign --yes "${image}@${DIGEST}" && return 0
+              [ "${attempt}" -eq 3 ] && return 1
+              sleep $((attempt * 60))
+            done
+          }
+          while IFS= read -r image; do
+            sign_digest "${image}"
+          done < <(sed 's/:[^:]*$//' <<< "${TAGS}" | sort -u)
 
       - name: Sign operator image digests
         if: github.event_name != 'pull_request'
@@ -125,9 +133,17 @@ jobs:
           DIGEST: ${{ steps.build-operator.outputs.digest }}
           TAGS: ${{ steps.meta-operator.outputs.tags }}
         run: |
-          while IFS= read -r tag; do
-            cosign sign --yes "${tag}@${DIGEST}"
-          done <<< "${TAGS}"
+          sign_digest() {
+            image="$1"
+            for attempt in 1 2 3; do
+              cosign sign --yes "${image}@${DIGEST}" && return 0
+              [ "${attempt}" -eq 3 ] && return 1
+              sleep $((attempt * 60))
+            done
+          }
+          while IFS= read -r image; do
+            sign_digest "${image}"
+          done < <(sed 's/:[^:]*$//' <<< "${TAGS}" | sort -u)
 
       - name: Update gateway Docker Hub page
         if: github.event_name != 'pull_request'
