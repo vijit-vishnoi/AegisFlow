@@ -18,5 +18,6 @@ COPY configs/demo.yaml /app/configs/aegisflow.yaml
 COPY configs/policy-packs/ /app/configs/policy-packs/
 COPY scripts/demo.sh /app/scripts/
 RUN chmod +x /app/scripts/*.sh
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD curl -f http://127.0.0.1:8080/health || exit 1
 EXPOSE 8080 8081 8082
 ENTRYPOINT ["./aegisflow"]
