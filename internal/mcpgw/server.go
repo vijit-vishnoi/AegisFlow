@@ -1,12 +1,14 @@
 package mcpgw
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -51,9 +53,10 @@ type ToolCallParams struct {
 
 // UpstreamConfig configures an upstream MCP server.
 type UpstreamConfig struct {
-	Name  string   `json:"name"`
-	URL   string   `json:"url"`
-	Tools []string `json:"tools"` // glob patterns for tool names this upstream handles
+	Name           string   `json:"name"`
+	URL            string   `json:"url"`
+	Tools          []string `json:"tools"` // glob patterns for tool names this upstream handles
+	BearerTokenEnv string   `json:"bearer_token_env,omitempty"`
 }
 
 // Gateway is an MCP gateway proxy that intercepts tool calls for policy evaluation.
@@ -488,8 +491,9 @@ func (g *Gateway) handleToolsList(w http.ResponseWriter, req *JSONRPCRequest) {
 	for _, up := range g.upstreams {
 		resp, err := g.proxyToUpstream(&up, req)
 		if err == nil && resp.Error == nil {
+			filtered := g.filterToolsByPolicy(req.ID, *resp)
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
+			json.NewEncoder(w).Encode(filtered)
 			return
 		}
 	}
@@ -515,6 +519,15 @@ func (g *Gateway) proxyToUpstream(upstream *UpstreamConfig, req *JSONRPCRequest)
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json, text/event-stream")
+	httpReq.Header.Set("MCP-Protocol-Version", "2025-03-26")
+	if upstream.BearerTokenEnv != "" {
+		token := os.Getenv(upstream.BearerTokenEnv)
+		if token == "" {
+			return nil, fmt.Errorf("upstream %s bearer token environment variable %s is empty", upstream.Name, upstream.BearerTokenEnv)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := g.client.Do(httpReq)
 	if err != nil {
@@ -526,12 +539,49 @@ func (g *Gateway) proxyToUpstream(upstream *UpstreamConfig, req *JSONRPCRequest)
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("upstream %s returned status %d: %s", upstream.Name, resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
 
 	var rpcResp JSONRPCResponse
-	if err := json.Unmarshal(respBody, &rpcResp); err != nil {
-		return nil, err
+	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
+		if err := decodeSSEJSONRPC(respBody, &rpcResp); err != nil {
+			return nil, fmt.Errorf("decode SSE response from %s: %w", upstream.Name, err)
+		}
+	} else if err := json.Unmarshal(respBody, &rpcResp); err != nil {
+		return nil, fmt.Errorf("decode JSON response from %s: %w", upstream.Name, err)
 	}
 	return &rpcResp, nil
+}
+
+func decodeSSEJSONRPC(body []byte, dst *JSONRPCResponse) error {
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
+	var data []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			if len(data) > 0 {
+				if err := json.Unmarshal([]byte(strings.Join(data, "\n")), dst); err == nil {
+					return nil
+				}
+				data = data[:0]
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			data = append(data, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if len(data) > 0 {
+		if err := json.Unmarshal([]byte(strings.Join(data, "\n")), dst); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("no JSON-RPC message found")
 }
 
 func (g *Gateway) writeError(w http.ResponseWriter, id json.RawMessage, code int, message string) {

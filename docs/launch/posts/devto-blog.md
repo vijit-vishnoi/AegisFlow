@@ -56,13 +56,15 @@ Client retries same action. Request ID and timestamp may change, but stable acti
 
 ## Verify evidence
 
-Set stable key before starting gateway when records must verify across restarts:
+Set stable key before starting gateway:
 
 ```bash
 export AEGISFLOW_EVIDENCE_KEY=<secret-from-key-manager>
 ```
 
 Each session gets separate signed hash chain.
+
+Session registry is memory-only. Export evidence before gateway shutdown when retention matters. Stable key does not restore prior sessions.
 
 ```bash
 ./bin/aegisctl evidence sessions

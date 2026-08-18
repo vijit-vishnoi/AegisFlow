@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Bearer-token environment variables and Streamable HTTP SSE responses for MCP HTTP upstreams.
+
+### Fixed
+
+- Direct HTTP `tools/list` responses now hide tools blocked by policy.
+- Evidence session exports now return JSON objects instead of quoted base64 data.
+- Evidence retention documentation now states that session registry is memory-only.
+
 ## [0.9.0] - 2026-08-18
 
 This release tightens tool boundaries, scopes evidence and credentials to each session, and adds verifiable release artifacts. It also carries tool calls across supported provider adapters instead of dropping them during translation.

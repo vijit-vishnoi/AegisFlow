@@ -16,13 +16,13 @@ export AEGISFLOW_EVIDENCE_KEY=<secret-from-key-manager>
 ./bin/aegisflow --config configs/aegisflow.example.yaml
 ```
 
-Without stable key, AegisFlow creates ephemeral key. Records from previous process cannot be verified after restart with new key.
+Evidence session registry is memory-only and clears on restart. Export records before shutdown and send them to durable, append-only storage. Stable key keeps signing identity consistent for new process, but does not reload prior sessions. Without configured key, AegisFlow creates ephemeral key.
 
 ## Verify session
 
 ```bash
 ./bin/aegisctl evidence export <session-id> --file evidence.json
-./bin/aegisctl verify
+./bin/aegisctl verify --session <session-id>
 ```
 
 Verification checks chain order, hashes, and signatures. Any edit, deletion, or reorder after signed record breaks verification from that point.

@@ -1,6 +1,9 @@
 package evidence
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // RegistryAdminAdapter exposes a ChainRegistry through the same admin interface
 // the single-chain AdminAdapter uses, but resolves the right per-session chain
@@ -18,7 +21,11 @@ func (a *RegistryAdminAdapter) ExportSession(sessionID string) (interface{}, err
 	if chain == nil {
 		return nil, fmt.Errorf("session %q not found", sessionID)
 	}
-	return chain.Export()
+	bundle, err := chain.Export()
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(bundle), nil
 }
 
 func (a *RegistryAdminAdapter) VerifySession(sessionID string) (interface{}, error) {

@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/saivedant169/AegisFlow/internal/envelope"
@@ -60,8 +61,23 @@ func TestRegistryAdminAdapter(t *testing.T) {
 	r.Record(envForSession("s1", "e1"))
 	a := NewRegistryAdminAdapter(r)
 
-	if _, err := a.ExportSession("s1"); err != nil {
+	exported, err := a.ExportSession("s1")
+	if err != nil {
 		t.Fatalf("export: %v", err)
+	}
+	raw, err := json.Marshal(exported)
+	if err != nil {
+		t.Fatalf("marshal export: %v", err)
+	}
+	var bundle struct {
+		SessionID string   `json:"session_id"`
+		Records   []Record `json:"records"`
+	}
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if bundle.SessionID != "s1" || len(bundle.Records) != 1 {
+		t.Fatalf("unexpected export: %s", raw)
 	}
 	if _, err := a.ExportSession("nope"); err == nil {
 		t.Fatal("expected error for unknown session")

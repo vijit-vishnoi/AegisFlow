@@ -51,7 +51,7 @@ kubectl create secret generic aegisflow-tenant-key \
 - Scrape `/metrics` from the admin service.
 - Send application logs to your central logging system.
 - Alert on provider failure rate, policy violations, approval backlog, and budget exhaustion.
-- Back up the evidence store if PostgreSQL persistence is enabled.
+- Export signed evidence sessions to durable, append-only storage before gateway shutdown.
 
 ## CI Gates
 

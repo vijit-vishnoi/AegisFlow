@@ -110,7 +110,7 @@ Set stable evidence key before gateway starts:
 export AEGISFLOW_EVIDENCE_KEY=<secret-from-key-manager>
 ```
 
-Without configured key, AegisFlow creates ephemeral key. Existing signatures will not verify across restart with different key.
+Evidence session registry is memory-only and clears on restart. Export records before shutdown. Stable key keeps signing identity consistent for new process, but does not reload prior sessions. Without configured key, AegisFlow creates ephemeral key.
 
 ```bash
 ./bin/aegisctl evidence sessions

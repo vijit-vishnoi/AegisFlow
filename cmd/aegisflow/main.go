@@ -780,9 +780,10 @@ func main() {
 		upstreams := make([]mcpgw.UpstreamConfig, len(cfg.MCPGateway.Upstreams))
 		for i, u := range cfg.MCPGateway.Upstreams {
 			upstreams[i] = mcpgw.UpstreamConfig{
-				Name:  u.Name,
-				URL:   u.URL,
-				Tools: u.Tools,
+				Name:           u.Name,
+				URL:            u.URL,
+				Tools:          u.Tools,
+				BearerTokenEnv: u.BearerTokenEnv,
 			}
 		}
 		// Reuse the same engine the admin endpoint uses (tpEngine). It's the one

@@ -150,10 +150,10 @@ Policy files and tuning notes live under [`starter-kit/policies`](starter-kit/po
 
 # Export and verify a session
 ./bin/aegisctl evidence export <session-id> --file evidence.json
-./bin/aegisctl verify
+./bin/aegisctl verify --session <session-id>
 ```
 
-Set `AEGISFLOW_EVIDENCE_KEY` to a stable secret when evidence must verify across restarts. Without it, AegisFlow creates an ephemeral key and logs a warning.
+Evidence sessions are stored in memory. Export records before gateway shutdown when retention matters. `AEGISFLOW_EVIDENCE_KEY` keeps signing identity stable, but does not restore sessions after restart. Without it, AegisFlow creates an ephemeral key and logs a warning.
 
 ## Release verification
 

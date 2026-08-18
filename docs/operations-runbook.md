@@ -103,7 +103,7 @@ Snapshots are stored under the configured `resilience.backup_dir`.
 
 ## PostgreSQL Backup
 
-PostgreSQL is optional. Use it when audit, evidence, and usage records need to survive restarts.
+PostgreSQL is optional. It persists audit and usage records. Per-session signed evidence remains memory-only, so export it to durable storage before gateway shutdown.
 
 Create a dump from the Docker Compose database:
 

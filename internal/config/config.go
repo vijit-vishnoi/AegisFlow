@@ -330,9 +330,10 @@ type MCPGatewayConfig struct {
 }
 
 type MCPUpstreamConfig struct {
-	Name  string   `yaml:"name"`
-	URL   string   `yaml:"url"`
-	Tools []string `yaml:"tools"`
+	Name           string   `yaml:"name"`
+	URL            string   `yaml:"url"`
+	Tools          []string `yaml:"tools"`
+	BearerTokenEnv string   `yaml:"bearer_token_env"`
 }
 
 type FederationConfig struct {

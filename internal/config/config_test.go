@@ -1046,6 +1046,11 @@ mcp_gateway:
   enabled: true
   host: "0.0.0.0"
   require_auth: true
+  upstreams:
+    - name: "github"
+      url: "http://localhost:8082/mcp"
+      tools: ["github.*"]
+      bearer_token_env: "GITHUB_TOKEN"
 `
 	f, err := os.CreateTemp("", "aegisflow-mcp-*.yaml")
 	if err != nil {
@@ -1066,6 +1071,9 @@ mcp_gateway:
 	}
 	if !cfg.MCPGateway.RequireAuth {
 		t.Fatal("expected require_auth true")
+	}
+	if len(cfg.MCPGateway.Upstreams) != 1 || cfg.MCPGateway.Upstreams[0].BearerTokenEnv != "GITHUB_TOKEN" {
+		t.Fatalf("unexpected MCP upstream config: %+v", cfg.MCPGateway.Upstreams)
 	}
 }
 

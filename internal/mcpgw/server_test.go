@@ -3,6 +3,7 @@ package mcpgw
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -148,6 +149,7 @@ func TestToolsListProxied(t *testing.T) {
 	gw := NewGateway(engine, nil, nil, []UpstreamConfig{
 		{Name: "github", URL: upstream.URL, Tools: []string{"github.*"}},
 	})
+	defer gw.Close()
 
 	reqBody := JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -173,6 +175,107 @@ func TestToolsListProxied(t *testing.T) {
 	}
 	if resp.Result == nil {
 		t.Fatal("expected result with tools list")
+	}
+}
+
+func TestToolsListFiltersBlockedToolsOnDirectHTTP(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      json.RawMessage(`1`),
+			Result: json.RawMessage(`{
+				"tools": [
+					{"name": "github.list_repos"},
+					{"name": "github.delete_repo"}
+				]
+			}`),
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer upstream.Close()
+
+	engine := toolpolicy.NewEngine([]toolpolicy.ToolRule{
+		{Protocol: "mcp", Tool: "github.delete_repo", Decision: "block"},
+	}, "allow")
+	gw := NewGateway(engine, nil, nil, []UpstreamConfig{
+		{Name: "github", URL: upstream.URL, Tools: []string{"github.*"}},
+	})
+	defer gw.Close()
+
+	reqBody := JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`1`),
+		Method:  "tools/list",
+	}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	gw.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	var result struct {
+		Tools []struct {
+			Name string `json:"name"`
+		} `json:"tools"`
+	}
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if len(result.Tools) != 1 || result.Tools[0].Name != "github.list_repos" {
+		t.Fatalf("expected only allowed tool, got %s", resp.Result)
+	}
+}
+
+func TestToolsListSupportsAuthenticatedStreamableHTTPUpstream(t *testing.T) {
+	t.Setenv("AEGISFLOW_TEST_MCP_TOKEN", "test-token")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Errorf("unexpected authorization header %q", got)
+		}
+		if got := r.Header.Get("Accept"); !strings.Contains(got, "text/event-stream") {
+			t.Errorf("accept header must allow SSE, got %q", got)
+		}
+		if got := r.Header.Get("MCP-Protocol-Version"); got != "2025-03-26" {
+			t.Errorf("unexpected MCP protocol version %q", got)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"tools\":[{\"name\":\"github.list_repos\"}]}}\n\n")
+	}))
+	defer upstream.Close()
+
+	engine := toolpolicy.NewEngine(nil, "allow")
+	gw := NewGateway(engine, nil, nil, []UpstreamConfig{{
+		Name:           "github",
+		URL:            upstream.URL,
+		Tools:          []string{"github.*"},
+		BearerTokenEnv: "AEGISFLOW_TEST_MCP_TOKEN",
+	}})
+	defer gw.Close()
+
+	reqBody := JSONRPCRequest{JSONRPC: "2.0", ID: json.RawMessage(`1`), Method: "tools/list"}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	gw.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !strings.Contains(string(resp.Result), "github.list_repos") {
+		t.Fatalf("missing upstream tool in response: %s", resp.Result)
 	}
 }
 
