@@ -64,7 +64,7 @@ func TestVerifyJSON_ValidChain(t *testing.T) {
 	if stderr != "" {
 		t.Fatalf("expected empty stderr, got %s", stderr)
 	}
-	
+
 	if strings.Contains(stdout, "\x1b") {
 		t.Fatalf("output must not contain ANSI escapes: %q", stdout)
 	}
