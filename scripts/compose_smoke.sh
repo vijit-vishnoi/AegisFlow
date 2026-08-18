@@ -14,23 +14,11 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Starting AegisFlow with Docker Compose..."
-docker compose -f "$COMPOSE_FILE" up -d --build
-
-echo "Waiting for health endpoints..."
-ready=false
-for _ in $(seq 1 60); do
-  if curl -fsS "$GATEWAY_URL/health" >/dev/null && curl -fsS "$ADMIN_URL/health" >/dev/null; then
-    ready=true
-    break
-  fi
-  sleep 2
-done
-
-if [ "$ready" != true ]; then
+docker compose -f "$COMPOSE_FILE" up -d --build --wait || {
   echo "AegisFlow did not become healthy in time"
   docker compose -f "$COMPOSE_FILE" logs --no-color
   exit 1
-fi
+}
 
 echo "Checking mock chat completion fallback..."
 chat_body="$TMP_DIR/chat.json"

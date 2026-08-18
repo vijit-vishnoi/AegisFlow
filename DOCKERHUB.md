@@ -16,6 +16,14 @@ docker run --rm \
 
 Default image uses local configuration and mock provider, so startup does not require a provider key.
 
+## Health Check
+
+The image includes a built-in health probe to monitor the gateway's status. It probes `http://127.0.0.1:8080/health` with the following configuration:
+- **Interval**: 30s
+- **Timeout**: 5s
+- **Start Period**: 10s
+- **Retries**: 3
+
 ## Ports
 
 | Port | Service |
