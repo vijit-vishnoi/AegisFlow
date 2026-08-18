@@ -261,7 +261,7 @@ func printUsage() {
 Usage: aegisctl <command> [args]
 
 Commands:
-  verify      Verify evidence chain integrity (--session <id> for specific session)
+  verify      Verify evidence chain integrity (--session <id> for specific session, add --json for machine output)
   evidence    Evidence management (sessions, export, report)
   policy-pack Manage policy packs (list, show)
   plugin      Manage WASM plugins (search, info, install, list, outdated, remove)

@@ -10,10 +10,13 @@ import (
 
 func cmdVerify(adminURL string, args []string) {
 	sessionID := ""
+	jsonOut := false
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--session" && i+1 < len(args) {
 			sessionID = args[i+1]
 			i++
+		} else if args[i] == "--json" || args[i] == "-json" {
+			jsonOut = true
 		}
 	}
 
@@ -47,7 +50,20 @@ func cmdVerify(adminURL string, args []string) {
 		os.Exit(1)
 	}
 
-	printVerifyResult(result)
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(result); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		printVerifyResult(result)
+	}
+
+	if !result.Valid {
+		os.Exit(1)
+	}
 }
 
 // VerifyResponse matches the evidence.VerifyResult JSON structure.
