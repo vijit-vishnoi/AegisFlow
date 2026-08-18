@@ -1,44 +1,52 @@
-**1/**
-Coding agents are getting real tool access — shell, SQL, GitHub, HTTP. That's also how a single bad call drops a table, force-pushes, or leaks your token. Most setups just hope the agent behaves.
+# X thread
 
-AegisFlow governs the boundary instead.
+## 1
 
-**2/**
-It sits between the agent and the tools it calls. Every action — MCP, shell, SQL, GitHub, HTTP — is normalized into one ActionEnvelope a policy engine can reason about.
+Coding agents call tools with real side effects. AegisFlow puts allow, review, or block policy on configured MCP and model paths before upstream execution.
 
-The governance decision adds single-digit microseconds — ~58k evals/sec, 1.1 ms p50 in an in-process benchmark.
+v0.9.0 proof uses running local gateway, not staged UI.
 
-**3/**
-Three outcomes per action: allow, review, block.
+https://github.com/saivedant169/AegisFlow
 
-Read the repo? allow. Open a PR? route to a human (review). `rm -rf` or destructive SQL? block.
+Attach: `docs/assets/hero-pr-writer.gif`
 
-You write the policy. The agent gets to work; the dangerous calls don't.
+## 2
 
-**4/**
-New in v0.8.0: point Claude Code or the Anthropic SDK at the gateway —
+Recorded flow:
 
-ANTHROPIC_BASE_URL=http://localhost:8080
+`github.list_repos` -> allow
+`github.delete_repo` -> block
+`github.create_pull_request` -> review
+approve exact action -> retry allowed
+signed evidence -> valid
 
-Now every prompt is policy-checked and audited *before* it reaches the provider. Same agent, governed path.
+## 3
 
-**5/**
-Two more things it does instead of trusting blind:
+Approval is single-use. Request ID and timestamp can change on retry. Repository, branch, title, actor, task, and arguments must match or policy asks for new review.
 
-- Mints a short-lived, task-scoped credential (e.g. 10 min) — not your real token.
-- Records a hash-chained, tamper-evident evidence chain you can export and verify.
+Attach: `docs/assets/shot-approval-queue.png`
 
-You can prove what happened.
+## 4
 
-**6/**
-Apache-2.0, Go, single binary, local-first. Pre-1.0 and honest about it. No API keys to try it:
+v0.9.0 adds supported tool-call translation, per-session signed evidence, scoped credential requests, checksum verification, Sigstore bundle, SBOM, and build provenance.
 
-```
-git clone https://github.com/saivedant169/AegisFlow.git
-cd AegisFlow/starter-kit
-./install-pr-writer.sh
-```
+Release: https://github.com/saivedant169/AegisFlow/releases/tag/v0.9.0
 
-The full story → https://github.com/saivedant169/AegisFlow/blob/main/docs/PR_WRITER.md
+## 5
 
-#AIagents
+Apple M1, 30k requests, zero-latency mock provider:
+
+55,327 req/s
+0.6 ms p50
+3.6 ms p99
+0 errors
+
+Method and 25 ms provider test: https://saivedant169.github.io/AegisFlow/performance/
+
+Attach: `docs/assets/benchmark-card.png`
+
+## 6
+
+Boundary: AegisFlow governs traffic routed through it. It does not sandbox agent process or catch calls that bypass gateway.
+
+Docs: https://saivedant169.github.io/AegisFlow/

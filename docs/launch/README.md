@@ -1,45 +1,59 @@
-# Launch content bundle
+# AegisFlow v0.9.0 launch bundle
 
-Everything needed to launch AegisFlow v0.8.0 in multiple places without
-rewriting the story each time. Posts are drafts — review before posting.
+Drafts and verified assets for v0.9.0 release. Review platform rules and final links before posting.
 
-## One-line pitch (use everywhere)
+## One-line description
 
-> AegisFlow lets coding agents read, test, edit, and open PRs safely — while blocking destructive actions, reviewing risky writes, minting scoped credentials, and proving what happened.
+> AegisFlow is a local-first policy gateway for coding agents. It can allow, review, or block routed MCP, shell, SQL, GitHub, and HTTP actions, issue scoped credentials, and verify tamper-evident session evidence.
 
-## The one workflow everything centers on
+## Proof workflow
 
-The governed coding-agent PR writer: the agent reads the repo, runs tests, is
-blocked from destructive shell, has its PR open routed to human review, gets a
-scoped 10-minute credential after approval, and the whole session exports as
-verifiable evidence. Proof: [docs/PR_WRITER.md](../PR_WRITER.md).
+Recorded proof sends real requests through local MCP gateway:
 
-## Posts (review, then post yourself)
+1. Repository list is allowed.
+2. Repository deletion is blocked.
+3. Pull request creation waits for human review.
+4. Exact approved retry is allowed.
+5. Signed evidence chain verifies.
 
-| Platform | File | Notes |
-|----------|------|-------|
-| Show HN | [posts/hackernews-show-hn.md](posts/hackernews-show-hn.md) | Mechanism-first, includes an honest "what it does NOT do yet" section. Post during US morning. |
-| Reddit (r/devops, r/programming) | [posts/reddit.md](posts/reddit.md) | Problem-first, ends with a real ask for feedback. Read each sub's self-promotion rules first. |
-| dev.to / blog | [posts/devto-blog.md](posts/devto-blog.md) | Tutorial walkthrough with code blocks. |
-| X / Twitter | [posts/x-thread.md](posts/x-thread.md) | 6-tweet thread. Attach the hero GIF to tweet 1. |
-| LinkedIn | [posts/linkedin.md](posts/linkedin.md) | Platform/security audience. |
-| GitHub Discussions | [posts/github-discussions-announcement.md](posts/github-discussions-announcement.md) | Post in Announcements, pin it. |
+Mock upstream avoids real GitHub changes and credentials. See [governed pull request proof](../PR_WRITER.md).
+
+## Drafts
+
+| Platform | File | Focus |
+|---|---|---|
+| Show HN | [posts/hackernews-show-hn.md](posts/hackernews-show-hn.md) | Mechanism, proof, limits |
+| Reddit | [posts/reddit.md](posts/reddit.md) | Operator problem and feedback request |
+| Dev.to | [posts/devto-blog.md](posts/devto-blog.md) | Technical walkthrough |
+| X | [posts/x-thread.md](posts/x-thread.md) | Short proof thread |
+| LinkedIn | [posts/linkedin.md](posts/linkedin.md) | Security and platform teams |
+| GitHub Discussions | [posts/github-discussions-announcement.md](posts/github-discussions-announcement.md) | Release announcement |
 
 ## Assets
 
-- [benchmark-card.md](benchmark-card.md) — real numbers, ready to render/screenshot.
-- [asset-shot-list.md](asset-shot-list.md) — exactly what GIF + screenshots to capture (manual).
+- [15.23-second proof GIF](../assets/hero-pr-writer.gif)
+- [blocked action](../assets/shot-blocked-action.png)
+- [approval queue](../assets/shot-approval-queue.png)
+- [evidence verification](../assets/shot-evidence-verification.png)
+- [benchmark card](../assets/benchmark-card.png)
+- [social preview](../assets/social-preview.png)
+- [capture notes](asset-shot-list.md)
 
-## Suggested order
+## Facts safe to cite
 
-1. Capture the hero GIF + 3 screenshots ([asset-shot-list.md](asset-shot-list.md)) and upload the social preview.
-2. Post the GitHub Discussions announcement and pin it.
-3. Post Show HN (the highest-signal, highest-scrutiny channel — make sure assets + proof link are ready first).
-4. Cross-post Reddit, dev.to, X, LinkedIn over the following day.
-5. Use the same one-line pitch in every one.
+- v0.9.0, Apache-2.0, Go single binary.
+- Real local proof covers allow, block, review, approved retry, and evidence verification.
+- Release includes SHA-256 checksums, Sigstore bundle, SPDX SBOM, and GitHub build provenance.
+- Apple M1 zero-latency mock benchmark: 55,327 req/s, 0.6 ms p50, 3.6 ms p99, 0 errors across 30,000 requests.
+- Apple M1 25 ms mock provider benchmark with cache disabled: 624.57 req/s, 28.0 ms p50, 35.0 ms p99, 0.00% errors.
 
-## Facts you may cite (and only these)
+Do not describe microbenchmarks as external provider throughput. Do not claim local proof mints real GitHub credentials. Do not imply AegisFlow intercepts calls that bypass configured gateway.
 
-58,000+ evals/sec (in-process governance benchmark) · 1.1 ms p50 · single-digit-microsecond governance overhead ·
-~80% test coverage · Apache-2.0 · Go single binary · v0.8.0. No star/user
-counts. Honest about pre-1.0.
+## Posting order
+
+1. Publish v0.9.0 release and Pages site.
+2. Upload social preview and confirm release assets.
+3. Post GitHub Discussions announcement.
+4. Publish technical walkthrough on Dev.to.
+5. Submit Show HN after links and screenshots resolve publicly.
+6. Adapt shorter copy for Reddit, LinkedIn, and X.

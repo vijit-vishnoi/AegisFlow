@@ -1,9 +1,9 @@
 apiVersion: v2
 name: aegisflow
-description: AegisFlow - Runtime governance for tool-using agents
+description: AegisFlow runtime governance for tool-using agents
 type: application
-version: 0.7.0
-appVersion: "0.7.0"
+version: 0.9.0
+appVersion: "0.9.0"
 keywords:
   - aegisflow
   - governance

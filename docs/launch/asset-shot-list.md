@@ -1,46 +1,40 @@
-# Launch asset shot-list
+# Launch asset record
 
-The text posts are ready in this folder. These visual assets still need to be
-captured by hand (they require a screen recorder / image tool). Each entry
-lists exactly what to capture so the bundle is consistent.
+Assets captured on 2026-08-18 from local v0.9.0 build.
 
-## 1. Hero GIF — the governed PR-writer flow (the one asset that matters most)
+## Proof GIF
 
-Record the `install-pr-writer.sh` demo driving a coding agent end to end:
+File: `docs/assets/hero-pr-writer.gif`
 
-1. `./starter-kit/install-pr-writer.sh` finishing ("ready in ~10s")
-2. agent reads the repo (allow)
-3. agent runs tests (allow)
-4. agent attempts `rm -rf` → **blocked** (show the -32001 error)
-5. agent opens a PR → **review required** (show the approval queue)
-6. `aegisctl approve …` → scoped credential minted
-7. `aegisctl evidence verify` → `valid: true`
+- Duration: 15.23 seconds
+- Size: 1149 x 731
+- Source: `scripts/record-proof.sh` recorded with asciinema, rendered with agg
+- Path: real AegisFlow MCP and admin endpoints against local mock GitHub upstream
+- Decisions: allow, block, review, approve, exact retry, evidence verify
 
-- Length: 15–25 s, loop-friendly. Trim dead air.
-- Save as: `docs/assets/hero-pr-writer.gif`, then uncomment the hero slot in `README.md`.
-- Tools: `asciinema` + `agg`, or any screen recorder → `ffmpeg`/`gifski`.
+## Screenshots
 
-## 2. Three screenshots
+| File | Content | Status |
+|---|---|---|
+| `shot-blocked-action.png` | `github.delete_repo` blocked with `-32001` | complete |
+| `shot-approval-queue.png` | dashboard holding one `github.create_pull_request` | complete |
+| `shot-evidence-verification.png` | signature and chain verification returns valid | complete |
 
-- `docs/assets/shot-block.png` — terminal showing a destructive action blocked (`shell.rm` → `-32001`).
-- `docs/assets/shot-approval.png` — the admin approval queue holding a `github.create_pull_request` with the diff title + justification.
-- `docs/assets/shot-evidence.png` — `aegisctl evidence verify` output ending in `valid: true, total_entries: N`.
+## Benchmark card
 
-## 3. Benchmark card image
+File: `docs/assets/benchmark-card.png`
 
-- Render `docs/launch/benchmark-card.md` (the ASCII box) as a PNG, or screenshot it.
-- Save as: `docs/assets/benchmark-card.png`.
+- Size: 1200 x 630
+- Data: Apple M1 results from 2026-08-18
+- Reproduction: `docs/performance.md`
+- Editable source: `docs/assets/benchmark-card.html`
 
-## 4. Social preview (repo Settings → Social preview)
+## Social preview
 
-- 1280×640. Title "AegisFlow", the one-line pitch, the allow/review/block words.
-- Upload via GitHub repo Settings → Options → Social preview.
+File: `docs/assets/social-preview.png`
 
-## Where each asset is used
+- Size: 1280 x 640
+- Includes product name, boundary description, decision labels, and real approval queue
+- Editable source: `docs/assets/social-preview.html`
 
-| Asset | Used in |
-|-------|---------|
-| hero GIF | README top, dev.to post, X tweet 1 |
-| shot-block / shot-approval / shot-evidence | dev.to, Reddit, LinkedIn |
-| benchmark card | HN comment, X thread, LinkedIn |
-| social preview | every shared link |
+Upload social preview through repository Settings after push. GitHub repository API does not expose social preview upload.

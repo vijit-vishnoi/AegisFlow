@@ -82,7 +82,7 @@ github: invalid private key: x509: failed to parse PKCS1 private key
 ```
 
 ```
-github: 401 Unauthorized — Bad credentials
+github: 401 Unauthorized: Bad credentials
 ```
 
 **Fix checklist**
@@ -119,7 +119,7 @@ failed to load config: parsing config file: yaml: line 23: did not find expected
 **Fix**
 
 1. **Lint the YAML.** Any decent editor will highlight indentation issues. `yq eval . your-config.yaml` exits non-zero on malformed YAML.
-2. **Read the startup warnings.** On startup AegisFlow walks `tool_policies.rules` and logs `[config] tool policy rule #N references unknown protocol ...` for anything outside `mcp | http | shell | sql | git | *`. If you see this line, that rule never matches — fix the protocol field.
+2. **Read the startup warnings.** On startup AegisFlow walks `tool_policies.rules` and logs `[config] tool policy rule #N references unknown protocol ...` for anything outside `mcp | http | shell | sql | git | *`. If you see this line, that rule never matches. Fix protocol field.
 3. **Confirm the policy is the one you think.** `aegisctl policies` lists what the running process has loaded.
 4. **Use `aegisctl simulate` to dry-run an envelope.** Cheaper than restarting the gateway every time you tweak a rule.
 
@@ -146,7 +146,7 @@ valid: true, total_entries: 7, audit log integrity verified
 Tampered or partial:
 
 ```
-valid: false at entry #5 (b1f0c324-…): hash chain broken — recorded prev_hash does not match previous entry
+valid: false at entry #5 (b1f0c324...): hash chain broken: recorded prev_hash does not match previous entry
 ```
 
 **Likely causes and fixes**
@@ -154,7 +154,7 @@ valid: false at entry #5 (b1f0c324-…): hash chain broken — recorded prev_has
 | Output / behavior | Cause | Fix |
 |-------------------|-------|-----|
 | `session not found` | Wrong `--session` ID, or the session is on a different host. | `aegisctl evidence sessions` to list available sessions; copy the exact ID. |
-| `valid: false at entry #N` | A row in the evidence store was edited or deleted after the fact. | Pull the immutable backup. The chain is intentionally non-repairable — that's the point. |
+| `valid: false at entry #N` | A row in the evidence store was edited or deleted after the fact. | Pull immutable backup. Chain is intentionally non-repairable. |
 | `valid: true` but exported file looks short | You verified the live chain, but exported only the actions visible to your tenant. | Run the export as an admin token, or scope the session correctly. |
 | Verify hangs | Admin API unreachable. | `aegisctl status` first. |
 
@@ -173,5 +173,5 @@ If `chain_valid: false` shows up under steady-state operation with no operator c
 
 - Reverse-proxy setup: [docs/deploy/reverse-proxy.md](deploy/reverse-proxy.md)
 - Proof artifact / scenario walkthrough: [docs/PR_WRITER.md](PR_WRITER.md)
-- Starter-kit policy packs: [starter-kit/README.md](../starter-kit/README.md)
+- Starter-kit policy packs: [starter-kit/README.md](https://github.com/saivedant169/AegisFlow/blob/main/starter-kit/README.md)
 - Discussions for everything else: <https://github.com/saivedant169/AegisFlow/discussions>

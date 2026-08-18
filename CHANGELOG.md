@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-18
+
+This release tightens tool boundaries, scopes evidence and credentials to each session, and adds verifiable release artifacts. It also carries tool calls across supported provider adapters instead of dropping them during translation.
+
+### Added
+
+- Tool-call types and translation for OpenAI-compatible, Anthropic, Gemini, and Ollama paths.
+- Optional `messages_api.tool_passthrough` support for the inbound Messages API. It remains disabled by default until each deployment verifies its provider tool loop.
+- Policy checks for tool definitions, tool arguments, and MCP `tools/list` responses.
+- Resumable review handling in the MCP gateway.
+- HMAC signatures on evidence records and one evidence chain per session.
+- Scoped GitHub App installation tokens and AWS STS session policies.
+- `docs-writer` policy pack with tuning notes.
+- Prebuilt installer with checksum verification.
+- End-to-end HTTP load test and a config sized for repeatable local measurements.
+- CodeQL, OpenSSF Scorecard, SBOM generation, keyless release signatures, and build provenance.
+- GitHub Container Registry publication alongside Docker Hub.
+
+### Changed
+
+- OpenAI-compatible and Messages API requests now share input, output, streaming, cache, spend, and kill-switch lifecycle checks.
+- Streaming output is scanned incrementally before bytes are sent to clients.
+- Approvals apply to one exact action and are consumed once.
+- Tool-policy target matching uses doublestar semantics, so `**` crosses path separators.
+- Evidence storage uses independent session chains with idle-session cleanup.
+- Shared provider clients use one tuned HTTP transport.
+- In-memory rate-limit windows, behavioral history, usage writes, analytics histograms, and semantic-cache work are bounded or batched.
+- Go toolchain requirement is 1.26.6.
+
+### Fixed
+
+- Approval resume now matches stable action fields, so an identical retry can consume an approved review even when request IDs and timestamps differ.
+- Provider adapters no longer drop system prompts or supported tool definitions and tool calls.
+- Anthropic streaming and non-streaming requests now run the same policy checks as OpenAI-compatible requests.
+- Stream scans no longer happen after untrusted output reaches a client.
+- Evidence hashes use length-prefixed fields instead of an ambiguous delimiter join.
+- Evidence, usage, policy, and MCP session paths no longer share unsafe global state.
+- MCP policy reloads now reach the watched gateway engine.
+- MCP SSE sessions and rate-limit windows are cleaned up after expiry.
+- GitHub and AWS credentials now carry task-specific scope.
+- Approval records cannot authorize a different action or be reused.
+- Federation config responses redact provider credentials, broker tokens, Redis passwords, database connection strings, signing keys, webhook secrets, and approval integration tokens.
+- Sensitive upstream errors and secret-bearing values receive stricter handling.
+- Governance load tests disable response caching when measuring provider latency, so repeated requests exercise full policy, upstream, and evidence paths.
+
 ### Security
 
 - Tool-policy target globs now use doublestar matching, so `**` patterns (e.g. `**/.ssh/*`, `**/credentials*`, `docs/**`) match nested paths. The previous `path.Match` did not support `**` and never crossed `/`, which silently disabled nested-path secret-block rules and could let a nested secret (e.g. a read of a deep `.ssh` key) fall through to an allow rule. Path-based blocking is still best-effort; see T2 in the threat model. (#111)

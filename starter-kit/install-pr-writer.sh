@@ -36,7 +36,7 @@ echo "==========================================="
 hdr "1) Checking prerequisites"
 
 if ! command -v go >/dev/null 2>&1; then
-    fail "Go not found (need 1.26.5+)"
+    fail "Go not found (need 1.26.6+)"
     cleanup_fail
 fi
 GO_VER=$(go version | awk '{print $3}' | sed 's/go//')
@@ -46,8 +46,8 @@ GO_PATCH=$(echo "$GO_VER" | cut -d. -f3)
 GO_PATCH="${GO_PATCH:-0}"
 if [ "$GO_MAJOR" -lt 1 ] || \
    { [ "$GO_MAJOR" -eq 1 ] && [ "$GO_MINOR" -lt 26 ]; } || \
-   { [ "$GO_MAJOR" -eq 1 ] && [ "$GO_MINOR" -eq 26 ] && [ "$GO_PATCH" -lt 4 ]; }; then
-    fail "Go $GO_VER too old (need 1.26.5+)"
+   { [ "$GO_MAJOR" -eq 1 ] && [ "$GO_MINOR" -eq 26 ] && [ "$GO_PATCH" -lt 6 ]; }; then
+    fail "Go $GO_VER too old (need 1.26.6+)"
     cleanup_fail
 fi
 pass "Go $GO_VER"
@@ -274,16 +274,30 @@ else
     CHECKS_FAILED=$((CHECKS_FAILED+1))
 fi
 
-# (c) Dangerous action blocked
+# (c) Risky write queued for review
+REVIEW_JSON=$(curl -s -X POST http://localhost:8081/admin/v1/test-action \
+    -H "Content-Type: application/json" \
+    -H "X-API-Key: pr-writer-key-001" \
+    -d '{"protocol":"mcp","tool":"github.create_pull_request","target":"myorg/myrepo","capability":"write"}')
+REVIEW_DECISION=$(echo "$REVIEW_JSON" | jq -r '.decision // "unknown"')
+if [ "$REVIEW_DECISION" = "review" ]; then
+    pass "(c) github.create_pull_request -> review"
+else
+    fail "(c) github.create_pull_request -> $REVIEW_DECISION (expected review)"
+    echo "    raw: $REVIEW_JSON"
+    CHECKS_FAILED=$((CHECKS_FAILED+1))
+fi
+
+# (d) Dangerous action blocked
 BLOCK_JSON=$(curl -s -X POST http://localhost:8081/admin/v1/test-action \
     -H "Content-Type: application/json" \
     -H "X-API-Key: pr-writer-key-001" \
     -d '{"protocol":"mcp","tool":"github.delete_repo","target":"myorg/myrepo","capability":"delete"}')
 BLOCK_DECISION=$(echo "$BLOCK_JSON" | jq -r '.decision // "unknown"')
 if [ "$BLOCK_DECISION" = "block" ]; then
-    pass "(c) github.delete_repo -> block"
+    pass "(d) github.delete_repo -> block"
 else
-    fail "(c) github.delete_repo -> $BLOCK_DECISION (expected block)"
+    fail "(d) github.delete_repo -> $BLOCK_DECISION (expected block)"
     echo "    raw: $BLOCK_JSON"
     CHECKS_FAILED=$((CHECKS_FAILED+1))
 fi

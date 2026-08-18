@@ -310,6 +310,39 @@ func TestConsumeApprovalForEnvelope_ScopedAndSingleUse(t *testing.T) {
 	}
 }
 
+func TestConsumeApprovalForEnvelope_MatchesRetry(t *testing.T) {
+	q := NewQueue(100)
+	original := envWithTarget("github.create_pr", "repo/a")
+	original.Parameters = map[string]any{"head": "fix/retry"}
+	id, _ := q.Submit(original)
+	q.Approve(id, "admin", "ok")
+
+	retry := envWithTarget("github.create_pr", "repo/a")
+	retry.ID = "env-github.create_pr-retry"
+	retry.Timestamp = original.Timestamp.Add(time.Second)
+	retry.Parameters = map[string]any{"head": "fix/retry"}
+	if retry.ID == original.ID {
+		t.Fatal("test requires a distinct retry envelope")
+	}
+	if !q.ConsumeApprovalForEnvelope(retry) {
+		t.Fatal("approved action did not match its retried envelope")
+	}
+}
+
+func TestConsumeApprovalForEnvelope_RejectsChangedArguments(t *testing.T) {
+	q := NewQueue(100)
+	original := envWithTarget("github.create_pr", "repo/a")
+	original.Parameters = map[string]any{"head": "fix/approved"}
+	id, _ := q.Submit(original)
+	q.Approve(id, "admin", "ok")
+
+	retry := envWithTarget("github.create_pr", "repo/a")
+	retry.Parameters = map[string]any{"head": "fix/different"}
+	if q.ConsumeApprovalForEnvelope(retry) {
+		t.Fatal("approval covered changed arguments")
+	}
+}
+
 func TestConsumeApprovalForEnvelope_NilSafe(t *testing.T) {
 	q := NewQueue(10)
 	if q.ConsumeApprovalForEnvelope(nil) {

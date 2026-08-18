@@ -14,7 +14,7 @@ C="${C:-50}"             # concurrency
 KEY="demo-key-001"
 URL="http://localhost:8080/v1/chat/completions"
 
-command -v hey >/dev/null || { echo "hey not installed: go install github.com/rakyll/hey@latest"; exit 1; }
+command -v hey >/dev/null || { echo "hey not installed: go install github.com/rakyll/hey@v0.1.5"; exit 1; }
 
 go build -o bin/aegisflow ./cmd/aegisflow
 AEGISFLOW_EVIDENCE_KEY="loadtest-key-0123456789abcdef" ./bin/aegisflow -config configs/loadtest.yaml >/tmp/aegis_loadtest.log 2>&1 &

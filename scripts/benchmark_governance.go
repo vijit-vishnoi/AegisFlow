@@ -71,7 +71,7 @@ func main() {
 				d := engine.Evaluate(env)
 				env.PolicyDecision = d
 				chain.Record(env)
-				registry.Issue(context.Background(), "static", credential.CredentialRequest{
+				registry.Issue(context.Background(), "benchmark", credential.CredentialRequest{
 					TaskID:     "bench-task",
 					SessionID:  "bench-session",
 					TenantID:   "bench-tenant",
@@ -173,10 +173,27 @@ func buildEngine() *toolpolicy.Engine {
 
 func buildRegistry() *credential.Registry {
 	reg := credential.NewRegistry()
-	broker := credential.NewStaticBroker("static", "bench-token-value", 5*time.Minute)
-	reg.Register("static", broker)
+	reg.Register("benchmark", benchmarkCredentialBroker{})
 	return reg
 }
+
+type benchmarkCredentialBroker struct{}
+
+func (benchmarkCredentialBroker) Issue(_ context.Context, req credential.CredentialRequest) (*credential.Credential, error) {
+	issuedAt := time.Now()
+	return &credential.Credential{
+		ID:        "bench-credential",
+		Type:      "benchmark",
+		Token:     "bench-token",
+		ExpiresAt: issuedAt.Add(req.TTL),
+		Scope:     req.Capability + ":" + req.Target,
+		TaskID:    req.TaskID,
+		IssuedAt:  issuedAt,
+	}, nil
+}
+
+func (benchmarkCredentialBroker) Revoke(context.Context, string) error { return nil }
+func (benchmarkCredentialBroker) Name() string                         { return "benchmark" }
 
 func makeEnvelope() *envelope.ActionEnvelope {
 	return envelope.NewEnvelope(

@@ -87,6 +87,24 @@ func benchReviewEnvelope() *envelope.ActionEnvelope {
 	)
 }
 
+type benchCredentialBroker struct{}
+
+func (benchCredentialBroker) Issue(_ context.Context, req credential.CredentialRequest) (*credential.Credential, error) {
+	issuedAt := time.Now()
+	return &credential.Credential{
+		ID:        "bench-credential",
+		Type:      "benchmark",
+		Token:     "bench-token",
+		ExpiresAt: issuedAt.Add(req.TTL),
+		Scope:     req.Capability + ":" + req.Target,
+		TaskID:    req.TaskID,
+		IssuedAt:  issuedAt,
+	}, nil
+}
+
+func (benchCredentialBroker) Revoke(context.Context, string) error { return nil }
+func (benchCredentialBroker) Name() string                         { return "benchmark" }
+
 func BenchmarkPolicyEvaluateAllow(b *testing.B) {
 	engine := buildBenchEngine()
 	b.ResetTimer()
@@ -121,7 +139,7 @@ func BenchmarkFullAllowPipeline(b *testing.B) {
 	engine := buildBenchEngine()
 	chain := evidence.NewSessionChain("bench-session")
 	reg := credential.NewRegistry()
-	reg.Register("static", credential.NewStaticBroker("static", "bench-token", 5*time.Minute))
+	reg.Register("benchmark", benchCredentialBroker{})
 	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -129,7 +147,7 @@ func BenchmarkFullAllowPipeline(b *testing.B) {
 		d := engine.Evaluate(env)
 		env.PolicyDecision = d
 		chain.Record(env)
-		reg.Issue(ctx, "static", credential.CredentialRequest{
+		reg.Issue(ctx, "benchmark", credential.CredentialRequest{
 			TaskID:     "bench-task",
 			SessionID:  "bench-session",
 			TenantID:   "bench-tenant",

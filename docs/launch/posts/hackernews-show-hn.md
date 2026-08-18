@@ -1,21 +1,25 @@
-**Show HN: AegisFlow – Policy and audit boundary for coding agents (Go, Apache-2.0)**
+# Show HN: AegisFlow, local policy gateway for coding agents and MCP tools
 
-AegisFlow is a single Go binary that sits between a coding agent (or any tool-using agent) and the tools it calls — MCP, shell, SQL, GitHub, HTTP. Every action is normalized into one struct (an `ActionEnvelope`) and the policy engine returns one of three decisions: allow, review, or block. It's local-first and runs without any paid cloud service for the core.
+I built AegisFlow because coding agents now call tools with real side effects, while most setups still hand them standing credentials and review results after execution.
 
-**Why I built it.** Coding agents already run inside the perimeter with real credentials. They can read repos, run tests, edit code, and open PRs. The problem isn't whether to let them act, it's how to bound what they can do and prove afterward what they did. Logging after the fact doesn't stop an `rm -rf` or a force push. Handing the agent a standing GitHub token means it holds far more access than any single task needs. I wanted the decision to happen at the boundary, before execution, with a record you can verify.
+AegisFlow is an Apache-2.0 Go service that sits on configured MCP, OpenAI-compatible, or Anthropic Messages API path. Routed tool calls become an `ActionEnvelope` with actor, task, protocol, tool, target, arguments, and requested capability. Policy returns `allow`, `review`, or `block` before upstream execution.
 
-**How it works.** A request comes in (MCP tool call, shell command, SQL statement, HTTP call). AegisFlow normalizes it into an envelope and evaluates a YAML policy. Default decision is `review`, so anything not explicitly allowed fails closed to a human, not open. Reads and tests are allowed unattended. Destructive shell (`rm -rf`, force push, `github.delete_repo`) is blocked. A PR open routes to an approval queue; a human approves via CLI or admin API, and only then does AegisFlow mint a short-lived, task-scoped credential (e.g. `pull_requests:write,contents:read`, 10-minute expiry) instead of passing through the user's token. Every allow, block, review, and approval is written to a SHA-256 hash-chained evidence log terminated by a session manifest hash. `aegisctl evidence verify` returns `valid: false` and points at the broken link if the database was edited after the fact.
+v0.9.0 adds tool-call translation across supported provider adapters, optional Messages API tool passthrough, one signed evidence chain per session, scoped GitHub App and AWS STS requests, and single-use approval resume. Release artifacts include SHA-256 checksums, Sigstore bundle, SPDX SBOM, and GitHub build provenance.
 
-The workflow I'd point at is the governed PR writer: agent reads the repo, runs the tests, gets blocked from destructive shell, has its PR open held for review, gets a scoped 10-minute credential after approval, and the whole session exports as one verifiable bundle. Walkthrough with the actual JSON-RPC responses: https://github.com/saivedant169/AegisFlow/blob/main/docs/PR_WRITER.md
+I recorded local proof rather than screen mock. It sends MCP calls through running gateway to mock GitHub upstream:
 
-**Numbers.** On an M1 the governance decision itself is single-digit microseconds. The in-process governance pipeline runs ~58,000 evaluations/sec at 1.1 ms p50 — a single-threaded micro-benchmark of the policy/evidence/credential path, not end-to-end HTTP throughput (I'd rather be upfront than quote a number the server hasn't actually hit). About 80% test coverage. Benchmarks are reproducible with the scripts in the repo.
+- `github.list_repos` is allowed and reaches upstream.
+- `github.delete_repo` is blocked with JSON-RPC `-32001`.
+- `github.create_pull_request` waits in approval queue.
+- Reviewer approves exact action, client retries, and call reaches upstream.
+- Signed evidence chain verifies.
 
-**What it does NOT do yet (it's pre-1.0):**
-- The Anthropic path (point Claude Code or the SDK at `ANTHROPIC_BASE_URL=http://localhost:8080` so prompts are policy-checked and audited before reaching the provider) does NOT support tool-use passthrough yet — it governs the prompt/completion path, not in-flight tool calls on that route.
-- It's pre-1.0. APIs, policy schema, and the evidence format can still change between releases.
-- Credential minting beyond the GitHub App path is limited; other providers need more work.
-- It enforces at the protocols it understands (MCP, shell, SQL, Git, HTTP). It does not sandbox the agent's process or stop something that bypasses the boundary entirely.
+Proof: https://saivedant169.github.io/AegisFlow/PR_WRITER/
 
-Apache-2.0. Install with no API keys (mock provider): `git clone`, `cd AegisFlow/starter-kit`, `./install-pr-writer.sh`.
+On Apple M1, zero-latency mock HTTP test handled 30,000 requests at 55,327 req/s with 0.6 ms p50 and 3.6 ms p99. With cache disabled and 25 ms mock provider delay, result was 624.57 req/s, 28.0 ms p50, 35.0 ms p99, 0.00% errors. Scripts and limits are documented: https://saivedant169.github.io/AegisFlow/performance/
 
-Repo: https://github.com/saivedant169/AegisFlow
+Important boundary: AegisFlow governs traffic routed through it. It is not process sandbox. Built-in editor file or shell tools are outside policy unless routed through MCP or another configured boundary. Messages API tool passthrough is disabled by default until operator tests provider loop.
+
+Repository: https://github.com/saivedant169/AegisFlow
+
+I would value feedback from people running coding agents against real repositories: which actions belong in review rather than block, and where does gateway boundary fail to fit your workflow?

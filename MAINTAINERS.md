@@ -33,7 +33,7 @@ Before tagging a release:
 
 - run `make fmt-check`
 - run `go test ./... -race -count=1`
-- run `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
+- run `go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...`
 - run `bash scripts/compose_smoke.sh`
 - verify Docker and release workflows on GitHub
 - update `CHANGELOG.md`

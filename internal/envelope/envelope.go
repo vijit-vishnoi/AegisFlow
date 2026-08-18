@@ -134,6 +134,33 @@ func (e *ActionEnvelope) Hash() string {
 	return fmt.Sprintf("%x", sum)
 }
 
+// ApprovalFingerprint identifies one requested action across retries. Attempt
+// fields such as ID and timestamp are excluded because clients create a new
+// envelope when they resume an approved call.
+func (e *ActionEnvelope) ApprovalFingerprint() string {
+	canonical := struct {
+		Actor               ActorInfo      `json:"actor"`
+		Task                string         `json:"task"`
+		Protocol            Protocol       `json:"protocol"`
+		Tool                string         `json:"tool"`
+		Target              string         `json:"target"`
+		Parameters          map[string]any `json:"parameters"`
+		RequestedCapability Capability     `json:"requested_capability"`
+	}{
+		Actor:               e.Actor,
+		Task:                e.Task,
+		Protocol:            e.Protocol,
+		Tool:                e.Tool,
+		Target:              e.Target,
+		Parameters:          e.Parameters,
+		RequestedCapability: e.RequestedCapability,
+	}
+
+	data, _ := json.Marshal(canonical)
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum)
+}
+
 // IsDestructive returns true if the requested capability is write, delete, or deploy.
 func (e *ActionEnvelope) IsDestructive() bool {
 	switch e.RequestedCapability {

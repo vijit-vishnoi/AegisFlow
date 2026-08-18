@@ -1,37 +1,32 @@
-# AegisFlow — benchmark card
+# AegisFlow benchmark card
 
-A single shareable card of the real numbers. Reproduce locally with
-`./scripts/run_benchmarks.sh` and `go run ./scripts/benchmark_governance.go`.
+Measured on Apple M1, macOS 26.6, Go 1.26.6, 2026-08-18.
 
+```text
+AegisFlow gateway benchmark
+
+Zero-latency mock provider, 30,000 requests, concurrency 50
+  Throughput       54,860 req/s
+  p50 / p95 / p99 0.6 / 2.4 / 3.5 ms
+  Errors           0
+
+25 ms mock provider, cache disabled, 300 requests, concurrency 20
+  Throughput       611.75 req/s
+  p50 / p95 / p99 27.9 / 34.0 / 36.4 ms
+  Error rate       0.00%
+
+Governance microbenchmarks
+  Policy allow     666 ns/op
+  Policy + evidence 2.634 us/op
+  Full allow path  2.905 us/op
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  AegisFlow — governance at the agent/tool boundary          │
-├─────────────────────────────────────────────────────────────┤
-│  Governance pipeline       58,000+ evals/s                    │
-│  Latency  p50 / p95 / p99  1.1 ms / 4.2 ms / 7.3 ms         │
-│                                                             │
-│  Governance decision cost (Apple M1, micro-benchmarks):     │
-│    envelope creation             ~0.4 µs                    │
-│    policy evaluate (allow)        ~1.2 µs                    │
-│    policy + evidence chain        ~3.4 µs                    │
-│    full allow (+ credential)      ~5.2 µs                    │
-│                                                             │
-│  The decision itself is single-digit microseconds.         │
-│  ~80% test coverage · Go single binary · Apache-2.0         │
-└─────────────────────────────────────────────────────────────┘
+
+Reproduce:
+
+```bash
+./scripts/loadtest_e2e.sh
+BENCH_RESULTS_FILE=benchmark-results.txt bash scripts/benchmark.sh
+go test ./scripts/benchgovern/ -bench=Benchmark -benchmem -count=1 -run='^$'
 ```
 
-| Metric | Value |
-|--------|-------|
-| Governance pipeline throughput | 58,000+ evals/sec |
-| p50 latency | 1.1 ms |
-| p95 latency | 4.2 ms |
-| p99 latency | 7.3 ms |
-| Envelope creation | ~0.4 µs |
-| Policy evaluate (allow, 20 rules) | ~1.2 µs |
-| Policy + evidence chain | ~3.4 µs |
-| Full allow (policy + evidence + credential) | ~5.2 µs |
-
-Numbers are micro-benchmarks on an Apple M1 (8 GB RAM); the governance
-overhead is the cost added on top of forwarding a request. See
-[docs/PR_WRITER.md](../PR_WRITER.md) for the costed end-to-end walkthrough.
+HTTP tests use local mock providers. They do not predict external provider latency. See [performance notes](../performance.md) for method and limits.

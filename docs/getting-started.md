@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.26.5+ (for building from source)
+- Go 1.26.6+ (for building from source)
 - Docker and Docker Compose (for containerized deployment)
 
 ## Quick Start
@@ -138,6 +138,6 @@ make build
 - [Observability guide](observability.md)
 - [Webhook guide](webhooks.md)
 - [Operations runbook](operations-runbook.md)
-- [Configuration reference](../configs/aegisflow.example.yaml)
-- [API specification](../api/openapi.yaml)
-- [Contributing guide](../CONTRIBUTING.md)
+- [Configuration reference](https://github.com/saivedant169/AegisFlow/blob/main/configs/aegisflow.example.yaml)
+- [API specification](https://github.com/saivedant169/AegisFlow/blob/main/api/openapi.yaml)
+- [Contributing guide](https://github.com/saivedant169/AegisFlow/blob/main/CONTRIBUTING.md)

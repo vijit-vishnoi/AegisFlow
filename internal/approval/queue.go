@@ -181,9 +181,9 @@ func (q *Queue) IsApprovedForTool(tool string) bool {
 }
 
 // ConsumeApprovalForEnvelope returns true at most once for an approved action
-// whose fingerprint (tool + target + arguments + capability, via Envelope.Hash)
+// whose fingerprint covers actor, task, tool, target, arguments, and capability
 // matches env and that was approved within the queue timeout. Matching on the
-// hash rather than the tool name stops a single approval from green-lighting
+// fingerprint rather than the tool name stops a single approval from covering
 // every other call of the same tool with different arguments, and consuming the
 // item makes each approval good for exactly one execution.
 func (q *Queue) ConsumeApprovalForEnvelope(env *envelope.ActionEnvelope) bool {
@@ -194,10 +194,10 @@ func (q *Queue) ConsumeApprovalForEnvelope(env *envelope.ActionEnvelope) bool {
 	defer q.mu.Unlock()
 
 	now := time.Now()
-	h := env.Hash()
+	fingerprint := env.ApprovalFingerprint()
 	for _, item := range q.history {
 		if item.Status == StatusApproved && !item.consumed && item.Envelope != nil &&
-			item.Envelope.Hash() == h &&
+			item.Envelope.ApprovalFingerprint() == fingerprint &&
 			item.ReviewedAt != nil && now.Sub(*item.ReviewedAt) <= q.Timeout {
 			item.consumed = true
 			return true

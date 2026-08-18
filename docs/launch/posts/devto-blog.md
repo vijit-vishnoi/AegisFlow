@@ -1,20 +1,27 @@
 ---
-title: "Governing a Coding Agent: A Step-by-Step Walkthrough of a Safe PR Writer"
+title: Put policy between coding agent and its tools
 published: false
-tags: ai, security, devops, golang
+description: A real allow, block, review, retry, and evidence flow with AegisFlow v0.9.0.
+tags: security, go, mcp, opensource
 ---
 
-Coding agents are good at real work now. They read a repo, run the tests, edit code, and open a pull request. The uncomfortable part is what sits behind that: the agent is holding credentials inside your perimeter and acting on its own. The question isn't *whether* to let it act — it's how to bound and prove what it did.
+# Put policy between coding agent and its tools
 
-That's what AegisFlow does.
+Coding agent with tool access is privileged client. It can read source, run commands, call APIs, and change remote state. Review after execution is too late for repository deletion or force push.
 
-> AegisFlow lets coding agents read, test, edit, and open PRs safely — while blocking destructive actions, reviewing risky writes, minting scoped credentials, and proving what happened.
+AegisFlow puts policy on configured protocol path. Routed call becomes `ActionEnvelope`:
 
-It's an Apache-2.0, single Go binary that runs locally with no paid cloud services for the core. It sits at the boundary between a coding agent and the tools it calls (MCP, shell, SQL, GitHub, HTTP). Every action is normalized into an `ActionEnvelope`, and a policy engine decides **allow / review / block**. The governance decision itself adds single-digit microseconds; the in-process governance pipeline runs ~58,000 evaluations/sec at 1.1 ms p50 (single-threaded micro-benchmark, not end-to-end HTTP throughput).
+```text
+client -> MCP or model endpoint -> ActionEnvelope -> allow | review | block -> upstream
+                                                     |
+                                                     -> signed evidence
+```
 
-This is pre-1.0 (v0.8.0), so treat it accordingly — but the workflow below is real and runs end to end.
+Policy can match actor, task, protocol, tool, target, arguments, and requested capability.
 
-## Install (under 10 seconds, no API keys)
+## Run local proof
+
+No provider key or GitHub token is required.
 
 ```bash
 git clone https://github.com/saivedant169/AegisFlow.git
@@ -22,132 +29,61 @@ cd AegisFlow/starter-kit
 ./install-pr-writer.sh
 ```
 
-This installs the `pr-writer` policy pack, whose philosophy is *stop the scary stuff, stay out of the way*. Reads and tests are free; opening a PR is a review checkpoint; destructive shell is blocked. The default decision is `review`, so anything nobody anticipated fails closed, not open.
+Installer builds services, starts local mock upstream, then checks allow, review, and block decisions.
 
-## The scenario
+![AegisFlow governed pull request flow](https://raw.githubusercontent.com/saivedant169/AegisFlow/v0.9.0/docs/assets/hero-pr-writer.gif)
 
-A coding agent is fixing a flaky test. It will read the codebase, run the tests, accidentally try to `rm -rf` a stale cache dir, draft a PR, wait for a human, get a scoped credential, and create the PR. At the end we export and verify the evidence. Each call below hits the admin test endpoint so you can replay the whole arc yourself.
+## Block before execution
 
-### 1. Read the codebase (ALLOWED)
+Recorded proof sends `github.delete_repo` through MCP gateway. Matching policy returns block. Client receives JSON-RPC `-32001`; mock upstream receives nothing.
 
-```bash
-curl -s -X POST http://localhost:8081/admin/v1/test-action \
-  -H "X-API-Key: starter-key-001" \
-  -d '{"protocol":"git","tool":"github.get_file_contents","capability":"read"}' | jq .
-```
+![Blocked GitHub action](https://raw.githubusercontent.com/saivedant169/AegisFlow/v0.9.0/docs/assets/shot-blocked-action.png)
 
-```json
-{ "decision": "allow", "matched_rule": "git:github.get_*", "policy": "pr-writer" }
-```
+## Hold risky write for review
 
-Read-only, matches `github.get_*`, forwarded immediately.
+`github.create_pull_request` returns review-required error and enters admin queue.
 
-### 2. Run the tests (ALLOWED)
+![AegisFlow approval queue](https://raw.githubusercontent.com/saivedant169/AegisFlow/v0.9.0/docs/assets/shot-approval-queue.png)
+
+Reviewer can approve from dashboard or CLI:
 
 ```bash
-curl -s -X POST http://localhost:8081/admin/v1/test-action \
-  -H "X-API-Key: starter-key-001" \
-  -d '{"protocol":"shell","tool":"shell.pytest","target":"/workspace","capability":"execute"}' | jq .
+./bin/aegisctl pending
+./bin/aegisctl approve <approval-id> "diff scope checked"
 ```
 
-```json
-{ "decision": "allow", "matched_rule": "shell:shell.pytest", "policy": "pr-writer" }
-```
+Client retries same action. Request ID and timestamp may change, but stable action fields must match. Changed repository, branch, title, actor, task, or arguments requires new review. Approval is consumed once.
 
-The agent gets `pytest` scoped to `/workspace` — not a shell. It can't pivot from running tests into running anything else, because every subsequent tool call comes back through AegisFlow as a fresh envelope.
+## Verify evidence
 
-### 3. The accidental `rm -rf` (BLOCKED)
-
-The agent tries to clean up a `__pycache__` dir and generates `rm -rf /workspace`.
+Set stable key before starting gateway when records must verify across restarts:
 
 ```bash
-curl -s -X POST http://localhost:8081/admin/v1/test-action \
-  -H "X-API-Key: starter-key-001" \
-  -d '{"protocol":"shell","tool":"shell.rm","target":"/workspace","capability":"delete"}' | jq .
+export AEGISFLOW_EVIDENCE_KEY=<secret-from-key-manager>
 ```
 
-```json
-{
-  "decision": "block",
-  "matched_rule": "shell:shell.rm",
-  "error": {
-    "code": -32001,
-    "message": "policy: shell.rm is blocked by pr-writer policy",
-    "data": { "reason": "destructive shell command" }
-  }
-}
-```
-
-Blocked at the protocol boundary, *before* execution — not detected afterward in a log. The agent sees a structured JSON-RPC `-32001` and self-corrects on the next turn. The block lands in the evidence chain just like an allow.
-
-### 4. Draft the PR (REVIEW REQUIRED)
-
-The fix is ready. The policy maps `github.create_pull_request` to `review`, so the action is parked in an approval queue and returns `-32002`:
-
-```json
-{
-  "decision": "review",
-  "error": {
-    "code": -32002,
-    "message": "approval required: action queued for human review"
-  }
-}
-```
-
-A human pulls the queue and sees the diff title, branch, and the agent's own justification before deciding.
-
-### 5. Human approves
+Each session gets separate signed hash chain.
 
 ```bash
-aegisctl approve d9e8a1b3-... \
-  --reviewer alice \
-  --comment "diff looks correct, scoped to the test file"
+./bin/aegisctl evidence sessions
+./bin/aegisctl verify --session <session-id>
+./bin/aegisctl evidence export <session-id> --file evidence.json
 ```
 
-The reviewer's identity, timestamp, and comment are hash-linked into the evidence chain. Approval isn't a side note — it's part of the cryptographic record.
+![Verified evidence](https://raw.githubusercontent.com/saivedant169/AegisFlow/v0.9.0/docs/assets/shot-evidence-verification.png)
 
-### 6. PR created with a scoped credential (ALLOWED)
+Hash chain detects changed, deleted, or reordered records. It does not prove calls outside AegisFlow never happened. Signing key must stay outside repository.
 
-The agent retries. AegisFlow sees the approval and — instead of handing over a standing token — mints a just-in-time GitHub App credential:
+## What v0.9.0 changes
 
-```json
-{
-  "decision": "allow",
-  "credential": {
-    "type": "github_app_jwt",
-    "scope": "pull_requests:write,contents:read",
-    "expires_in": 600
-  },
-  "result": { "pr_url": "https://github.com/.../pull/1247" }
-}
-```
+Release adds supported tool-call translation for OpenAI-compatible, Anthropic, Gemini, and Ollama paths. Messages API tool passthrough is optional and disabled by default. Evidence and approvals are session scoped. GitHub App and AWS STS brokers can request task-specific access.
 
-Narrow scope, expires in 10 minutes, issued only because the policy allowed *and* a human approved. Revocation is automatic — it just expires.
+Release assets include checksums, Sigstore bundle, SPDX SBOM, and GitHub build provenance.
 
-### 7. Verify the evidence
+## Boundary
 
-```bash
-aegisctl evidence verify --session sess-2026-04-06-1422
-```
+AegisFlow is gateway, not process sandbox. Calls that bypass configured endpoint are outside policy. Built-in editor file and shell tools are not intercepted automatically.
 
-```
-  allow   github.get_file_contents
-  allow   shell.pytest
-  block   shell.rm
-  review  github.create_pull_request
-  approve alice
-  allow   github.create_pull_request
-valid: true, total_entries: 7, audit log integrity verified
-```
+Repository: https://github.com/saivedant169/AegisFlow
 
-Seven SHA-256 hash-linked entries terminated by a session manifest hash. Edit the database after the fact and `verify` returns `valid: false` and points at the broken link. One exportable file answers "what did the agent do, who approved it, and can we trust the record."
-
-## Why it matters
-
-The agent got to do real work unattended. Three risky things were stopped or reviewed. And you have a single signed bundle to hand to security or compliance. Least privilege is just-in-time, destructive actions fail closed, and the audit is tamper-evident rather than log-scraping.
-
-New in v0.8.0: point Claude Code or the Anthropic SDK at the gateway with `ANTHROPIC_BASE_URL=http://localhost:8080` and every prompt is policy-checked and audited before it reaches the provider — plus a Prometheus `aegisflow_policy_decisions_total{decision,protocol}` metric and a `sql-explorer` pack (SELECT allowed, writes reviewed, destructive SQL blocked).
-
-**Full walkthrough:** https://github.com/saivedant169/AegisFlow/blob/main/docs/PR_WRITER.md
-
-**Repo:** https://github.com/saivedant169/AegisFlow
+Documentation: https://saivedant169.github.io/AegisFlow/

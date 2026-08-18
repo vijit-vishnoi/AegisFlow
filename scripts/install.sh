@@ -1,5 +1,5 @@
 #!/bin/sh
-# AegisFlow installer — downloads a prebuilt binary from the GitHub release.
+# AegisFlow installer: downloads and verifies a prebuilt release binary.
 #
 #   curl -fsSL https://raw.githubusercontent.com/saivedant169/AegisFlow/main/scripts/install.sh | sh
 #
@@ -38,8 +38,10 @@ asset="${BIN}-${os}-${arch}"
 # --- resolve the download URL ---
 if [ "$VERSION" = "latest" ]; then
   url="https://github.com/${REPO}/releases/latest/download/${asset}"
+  checksums_url="https://github.com/${REPO}/releases/latest/download/SHA256SUMS"
 else
   url="https://github.com/${REPO}/releases/download/${VERSION}/${asset}"
+  checksums_url="https://github.com/${REPO}/releases/download/${VERSION}/SHA256SUMS"
 fi
 
 # --- pick an install dir we can write to ---
@@ -49,25 +51,48 @@ if [ ! -d "$bindir" ] || [ ! -w "$bindir" ]; then
   mkdir -p "$bindir"
 fi
 
-tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
+tmpdir=$(mktemp -d)
+binary_file="$tmpdir/$asset"
+checksums_file="$tmpdir/SHA256SUMS"
+trap 'rm -rf "$tmpdir"' EXIT
+
+download() {
+  source_url="$1"
+  destination="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fSL "$source_url" -o "$destination" || err "download failed: $source_url"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$destination" "$source_url" || err "download failed: $source_url"
+  else
+    err "need curl or wget"
+  fi
+}
 
 info "downloading ${asset} (${VERSION})"
-if command -v curl >/dev/null 2>&1; then
-  curl -fSL "$url" -o "$tmp" || err "download failed: $url"
-elif command -v wget >/dev/null 2>&1; then
-  wget -qO "$tmp" "$url" || err "download failed: $url"
-else
-  err "need curl or wget"
-fi
+download "$url" "$binary_file"
+download "$checksums_url" "$checksums_file"
 
-chmod +x "$tmp"
-mv "$tmp" "$bindir/$BIN"
+expected=$(awk -v name="$asset" '$2 == name { print $1 }' "$checksums_file")
+[ -n "$expected" ] || err "checksum missing for $asset"
+
+if command -v sha256sum >/dev/null 2>&1; then
+  actual=$(sha256sum "$binary_file" | awk '{ print $1 }')
+elif command -v shasum >/dev/null 2>&1; then
+  actual=$(shasum -a 256 "$binary_file" | awk '{ print $1 }')
+else
+  err "need sha256sum or shasum"
+fi
+[ "$actual" = "$expected" ] || err "checksum verification failed for $asset"
+info "checksum verified"
+
+chmod +x "$binary_file"
+mv "$binary_file" "$bindir/$BIN"
 trap - EXIT
+rm -rf "$tmpdir"
 
 info "installed $bindir/$BIN"
 if ! command -v "$BIN" >/dev/null 2>&1; then
-  echo "note: $bindir is not on your PATH — add it, e.g.:"
+  echo "note: $bindir is not on your PATH. Add it, for example:"
   echo "  export PATH=\"$bindir:\$PATH\""
 fi
 echo

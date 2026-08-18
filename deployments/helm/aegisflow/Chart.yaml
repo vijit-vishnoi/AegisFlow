@@ -1,14 +1,13 @@
 apiVersion: v2
 name: aegisflow
-description: Open-Source AI Gateway + Policy + Observability Control Plane
+description: Runtime policy gateway for coding agents and tool-using agents
 type: application
-version: 0.7.0
-appVersion: "0.7.0"
+version: 0.9.0
+appVersion: "0.9.0"
 keywords:
-  - ai-gateway
-  - llm
-  - openai
-  - observability
+  - agent-governance
+  - mcp
+  - runtime-security
   - policy-engine
 maintainers:
   - name: saivedant169

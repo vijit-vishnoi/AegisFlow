@@ -67,7 +67,7 @@ logging:
   format: "json"
 
 cache:
-  enabled: true
+  enabled: false
   backend: "memory"
   ttl: 2m
   max_size: 1000

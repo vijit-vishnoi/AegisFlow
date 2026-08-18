@@ -6,13 +6,13 @@ If you find a vulnerability, I would rather hear about it quietly first than rea
 
 ## Supported versions
 
-At this stage the project is pre-1.0 and I only patch the latest `main`. Once there is a stable release line, this section will list supported versions explicitly.
+The project is pre-1.0. Security fixes land on `main` and ship in the newest minor release. Older minor releases do not receive backports.
 
 | Version | Supported |
 | ------- | --------- |
 | `main`  | Yes       |
-| 0.5.x   | Yes (current release line) |
-| 0.4.x   | No        |
+| 0.9.x   | Yes       |
+| 0.8.x   | No        |
 | Older   | No        |
 
 ## Reporting a vulnerability

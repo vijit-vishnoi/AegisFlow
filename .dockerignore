@@ -7,8 +7,13 @@
 .env
 .env.*
 .aegisflow-run/
+.agents/
 .claude/
 .mcp.json
+progress.md
+oss-contribution-rules.md
+AUDIT-2026-06-09.local.md
+REMEDIATION-PLAN.local.md
 
 # Build and test outputs
 bin/

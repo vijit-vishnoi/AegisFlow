@@ -16,6 +16,8 @@ const (
 	defaultAdminURL   = "http://localhost:8081"
 )
 
+var version = "dev"
+
 var client = &http.Client{Timeout: 10 * time.Second}
 
 func main() {
@@ -220,7 +222,7 @@ func main() {
 	case "help", "--help", "-h":
 		printUsage()
 	case "version":
-		fmt.Println("aegisctl v0.7.0")
+		fmt.Println("aegisctl", version)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printUsage()

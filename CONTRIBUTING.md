@@ -16,7 +16,7 @@ Thank you for your interest in contributing to AegisFlow. This document provides
 ## Development Setup
 
 ```bash
-# Install Go 1.24+
+# Install Go 1.26.6 or later
 brew install go
 
 # Build
@@ -27,6 +27,12 @@ make run
 
 # Run tests
 make test
+
+# Run vulnerability checks
+make vuln
+
+# Run the production-style smoke test
+make smoke
 
 # Run with Docker
 make docker-up
@@ -62,6 +68,7 @@ make docker-up
 - All exported functions must have tests
 - Run `gofmt -s -w .` before committing
 - Run `golangci-lint run ./...` and fix all issues
+- Run `go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...`
 - Keep packages small and focused
 
 ## Pull Request Process

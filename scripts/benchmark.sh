@@ -59,7 +59,7 @@ require_cmd go
 if ! command -v hey >/dev/null 2>&1; then
   export GOBIN="$TMP_DIR/bin"
   mkdir -p "$GOBIN"
-  go install github.com/rakyll/hey@latest
+  go install github.com/rakyll/hey@v0.1.5
   export PATH="$GOBIN:$PATH"
 fi
 

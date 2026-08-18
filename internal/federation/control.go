@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,10 +53,18 @@ func (cp *ControlPlane) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	stripped := cp.stripConfig()
-	data, _ := yaml.Marshal(stripped)
+	stripped, err := cp.stripConfig()
+	if err != nil {
+		http.Error(w, "failed to prepare config", http.StatusInternalServerError)
+		return
+	}
+	data, err := yaml.Marshal(stripped)
+	if err != nil {
+		http.Error(w, "failed to encode config", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/x-yaml")
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 // MetricsHandler accepts metrics pushed from a data plane.
@@ -119,14 +128,57 @@ func (cp *ControlPlane) validateToken(r *http.Request) bool {
 	return false
 }
 
-func (cp *ControlPlane) stripConfig() *config.Config {
-	stripped := *cp.cfg
-	stripped.Tenants = make([]config.TenantConfig, len(cp.cfg.Tenants))
-	for i, t := range cp.cfg.Tenants {
-		stripped.Tenants[i] = t
+func (cp *ControlPlane) stripConfig() (*config.Config, error) {
+	data, err := yaml.Marshal(cp.cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	stripped := &config.Config{}
+	if err := yaml.Unmarshal(data, stripped); err != nil {
+		return nil, err
+	}
+
+	for i := range stripped.Providers {
+		for j := range stripped.Providers[i].APIKeys {
+			stripped.Providers[i].APIKeys[j].Key = ""
+		}
+		for key := range stripped.Providers[i].Config {
+			if sensitiveConfigKey(key) {
+				delete(stripped.Providers[i].Config, key)
+			}
+		}
+	}
+	for i := range stripped.Tenants {
 		stripped.Tenants[i].APIKeys = nil
 	}
+	for i := range stripped.Credentials.Providers {
+		stripped.Credentials.Providers[i].Token = ""
+		stripped.Credentials.Providers[i].GitHubKeyPath = ""
+		stripped.Credentials.Providers[i].VaultToken = ""
+		stripped.Credentials.Providers[i].AWSExternalID = ""
+	}
+	stripped.RateLimit.Redis.Password = ""
+	stripped.Cache.Redis.Password = ""
+	stripped.Cache.Semantic.APIKey = ""
+	stripped.Webhook.Secret = ""
+	stripped.Database.ConnString = ""
 	stripped.Admin = config.AdminConfig{}
+	stripped.Eval.Webhook.URL = ""
+	stripped.ApprovalIntegrations.GitHub.Token = ""
+	stripped.ApprovalIntegrations.Slack.WebhookURL = ""
+	stripped.Capability.SigningKey = ""
+	stripped.SupplyChain.SigningKey = ""
 	stripped.Federation = config.FederationConfig{}
-	return &stripped
+	return stripped, nil
+}
+
+func sensitiveConfigKey(key string) bool {
+	key = strings.ToLower(key)
+	for _, marker := range []string{"credential", "key", "password", "secret", "token"} {
+		if strings.Contains(key, marker) {
+			return true
+		}
+	}
+	return false
 }

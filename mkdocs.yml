@@ -1,0 +1,85 @@
+site_name: AegisFlow
+site_description: Local-first policy gateway for coding agents, MCP tools, approvals, scoped credentials, and tamper-evident evidence.
+site_url: https://saivedant169.github.io/AegisFlow/
+repo_url: https://github.com/saivedant169/AegisFlow
+repo_name: saivedant169/AegisFlow
+edit_uri: edit/main/docs/
+copyright: Copyright 2026 AegisFlow contributors. Apache-2.0 licensed.
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Use dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Use light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+exclude_docs: |
+  .DS_Store
+  launch/posts/
+  plans/
+  specs/
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Local quickstart: getting-started.md
+      - Governed PR proof: PR_WRITER.md
+      - Troubleshooting: troubleshooting.md
+  - Agent security:
+      - Claude Code security: guides/claude-code-security.md
+      - Cursor policy gateway: guides/cursor-policy-gateway.md
+      - Coding-agent governance: guides/coding-agent-governance.md
+  - MCP security:
+      - MCP gateway security: guides/mcp-gateway-security.md
+      - Approval workflows: guides/approval-workflows.md
+      - Tamper-evident audit logs: guides/tamper-evident-audit.md
+  - Operate:
+      - Architecture: architecture.md
+      - Production checklist: production-checklist.md
+      - Operations runbook: operations-runbook.md
+      - Observability: observability.md
+      - Performance: performance.md
+      - Reverse proxy: deploy/reverse-proxy.md
+  - Security:
+      - Threat model: security/THREAT_MODEL.md
+      - Deployment guide: security/DEPLOYMENT_GUIDE.md
+      - OWASP Agentic mapping: security/OWASP_AGENTIC_MAPPING.md
+      - Security questionnaire: security/SECURITY_QUESTIONNAIRE.md
+  - Releases:
+      - Release policy: releases/README.md
+      - v0.9.0: releases/v0.9.0.md
