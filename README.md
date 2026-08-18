@@ -89,6 +89,13 @@ curl -fsSL https://raw.githubusercontent.com/saivedant169/AegisFlow/v0.9.0/scrip
 
 Installer downloads `SHA256SUMS` from same release and rejects mismatched binaries.
 
+### Homebrew
+
+```bash
+brew install saivedant169/tap/aegisflow
+brew install saivedant169/tap/aegisctl
+```
+
 ### Go
 
 ```bash
