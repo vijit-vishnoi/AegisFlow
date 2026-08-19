@@ -7,16 +7,26 @@ description: Record and verify signed, hash-linked evidence for governed agent s
 
 AegisFlow evidence records what policy decided at configured boundary. Each session uses separate hash chain. Every record includes previous hash and HMAC signature.
 
-## Stable signing key
+## Restart-safe state
 
-Set evidence key before starting gateway:
+Memory storage remains default. Enable SQLite to restore approval and evidence records after restart:
+
+```yaml
+state:
+  enabled: true
+  sqlite_path: "data/aegisflow.db"
+```
+
+Set evidence key outside database before starting gateway:
 
 ```bash
 export AEGISFLOW_EVIDENCE_KEY=<secret-from-key-manager>
 ./bin/aegisflow --config configs/aegisflow.example.yaml
 ```
 
-Evidence session registry is memory-only and clears on restart. Export records before shutdown and send them to durable, append-only storage. Stable key keeps signing identity consistent for new process, but does not reload prior sessions. Without configured key, AegisFlow creates ephemeral key.
+Persistent mode refuses to start without `AEGISFLOW_EVIDENCE_KEY`. Same key authenticates approval rows and evidence records. Invalid approval signature, evidence hash, chain link, record index, or signature stops startup. `AEGISFLOW_STATE_DB` overrides configured path.
+
+SQLite supports one running instance. Export records or ship checkpoints to separate append-only storage for longer retention and rollback detection.
 
 ## Verify session
 
@@ -25,12 +35,14 @@ Evidence session registry is memory-only and clears on restart. Export records b
 ./bin/aegisctl verify --session <session-id>
 ```
 
-Verification checks chain order, hashes, and signatures. Any edit, deletion, or reorder after signed record breaks verification from that point.
+Verification checks record order, hashes, links, and signatures. Record edits, reorder, and missing records before chain tail fail verification. Tail rollback needs checkpoint stored outside same database.
 
 ![Verified AegisFlow evidence chain](../assets/shot-evidence-verification.png)
 
 ## Security limits
 
 Hash chain detects changes to recorded data. It does not prove calls outside AegisFlow never happened. An attacker with signing key can create valid records. Protect key outside repository, restrict admin export access, and ship evidence to append-only storage when retention matters.
+
+Run [approval replay security test](../benchmarks/approval-security.md) for restart and tamper proof.
 
 See [threat model](../security/THREAT_MODEL.md) for trust assumptions.

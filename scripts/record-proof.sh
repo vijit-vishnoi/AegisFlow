@@ -50,8 +50,7 @@ sleep 2
 step "3. Agent asks to open a pull request"
 args='{"repo":"saivedant169/AegisFlow","title":"docs: clarify policy boundary","head":"docs/policy-boundary","base":"main"}'
 review=$(post_tool 3 "github.create_pull_request" "$args" || true)
-approval_id=$(curl -fsS "$ADMIN_URL/admin/v1/approvals" -H "X-API-Key: $API_KEY" |
-  jq -r '[.pending[] | select(.envelope.tool == "github.create_pull_request")][0].id')
+approval_id=$(jq -r '.error.data.approval_id // empty' <<< "$review")
 if [[ -z "$approval_id" || "$approval_id" == "null" ]]; then
   printf 'No pending approval found\n' >&2
   exit 1

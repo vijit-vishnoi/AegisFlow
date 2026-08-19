@@ -69,5 +69,9 @@ Awesome-LLMOps
 # PR-writer installer artifacts
 .aegisflow-run/
 configs/pr-writer.yaml
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+/site/
 AUDIT-2026-06-09.local.md
 REMEDIATION-PLAN.local.md

@@ -198,6 +198,8 @@ aegisctl deny <envelope_id> --reviewer your-name --comment "Denied"
 
 Every action -- allowed, reviewed, or blocked -- is recorded in a tamper-evident hash chain.
 
+PR-writer installer stores approval and evidence state in `.aegisflow-run/state.db`. Signing key remains separate in `.aegisflow-run/evidence.key`. Keep key private and use secret manager outside local demo.
+
 ### Export a session's evidence
 
 ```bash

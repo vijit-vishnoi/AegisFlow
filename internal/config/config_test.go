@@ -1077,6 +1077,44 @@ mcp_gateway:
 	}
 }
 
+func TestStatePersistenceConfig(t *testing.T) {
+	yamlData := `
+state:
+  enabled: true
+  sqlite_path: "/tmp/aegisflow-state.db"
+`
+	f, err := os.CreateTemp("", "aegisflow-state-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.WriteString(yamlData); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !cfg.State.Enabled {
+		t.Fatal("expected state persistence to be enabled")
+	}
+	if cfg.State.SQLitePath != "/tmp/aegisflow-state.db" {
+		t.Fatalf("unexpected sqlite path %q", cfg.State.SQLitePath)
+	}
+}
+
+func TestStatePersistenceDefaultPath(t *testing.T) {
+	cfg := &Config{}
+	setDefaults(cfg)
+	if cfg.State.SQLitePath != "data/aegisflow.db" {
+		t.Fatalf("unexpected default sqlite path %q", cfg.State.SQLitePath)
+	}
+}
+
 func TestFindTenantByAPIKey_IndexedLookup(t *testing.T) {
 	cfg := &Config{
 		Tenants: []TenantConfig{

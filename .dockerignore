@@ -7,6 +7,10 @@
 .env
 .env.*
 .aegisflow-run/
+data/*.db
+data/*.db-shm
+data/*.db-wal
+site/
 .agents/
 .claude/
 .mcp.json

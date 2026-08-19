@@ -26,6 +26,7 @@ The installer will:
 - Generate `configs/pr-writer.yaml` from the `pr-writer` policy pack
 - Build `bin/aegisflow` and `bin/aegisctl`
 - Start AegisFlow and the mock MCP server in the background
+- Keep approvals and signed evidence under `.aegisflow-run/` across restart
 - Write `.mcp.json` so Claude Code can discover the gateway
 - Run 3 sanity checks (health, allow, block)
 
@@ -158,3 +159,4 @@ Common knobs:
 ```
 
 This kills both background processes and removes `.mcp.json`.
+Local SQLite state and signing key remain under `.aegisflow-run/` for next start.

@@ -21,6 +21,15 @@ func envForSession(session, id string) *envelope.ActionEnvelope {
 	}
 }
 
+func mustGetChain(t *testing.T, registry *ChainRegistry, sessionID string) *SessionChain {
+	t.Helper()
+	chain, err := registry.get(sessionID)
+	if err != nil {
+		t.Fatalf("get session %q: %v", sessionID, err)
+	}
+	return chain
+}
+
 func TestChainRegistry_SplitsBySession(t *testing.T) {
 	r := NewChainRegistry(nil)
 	defer r.Close()
@@ -29,13 +38,13 @@ func TestChainRegistry_SplitsBySession(t *testing.T) {
 	r.Record(envForSession("s1", "e2"))
 	r.Record(envForSession("s2", "e3"))
 
-	if got := len(r.get("s1").Records()); got != 2 {
+	if got := len(mustGetChain(t, r, "s1").Records()); got != 2 {
 		t.Fatalf("session s1 should have 2 records, got %d", got)
 	}
-	if got := len(r.get("s2").Records()); got != 1 {
+	if got := len(mustGetChain(t, r, "s2").Records()); got != 1 {
 		t.Fatalf("session s2 should have 1 record, got %d", got)
 	}
-	if r.get("missing") != nil {
+	if mustGetChain(t, r, "missing") != nil {
 		t.Fatal("unknown session should be nil")
 	}
 }
@@ -46,7 +55,7 @@ func TestChainRegistry_SignsRecords(t *testing.T) {
 	defer r.Close()
 	r.Record(envForSession("s1", "e1"))
 
-	recs := r.get("s1").Records()
+	recs := mustGetChain(t, r, "s1").Records()
 	if recs[0].Signature == "" {
 		t.Fatal("registry with a key should sign records")
 	}
@@ -89,8 +98,12 @@ func TestRegistryAdminAdapter(t *testing.T) {
 	if res, ok := v.(VerifyResult); !ok || !res.Valid {
 		t.Fatalf("expected valid verify result, got %+v", v)
 	}
-	list, ok := a.ListSessions().([]SessionManifest)
+	listed, err := a.ListSessions()
+	if err != nil {
+		t.Fatalf("list sessions: %v", err)
+	}
+	list, ok := listed.([]SessionManifest)
 	if !ok || len(list) != 1 {
-		t.Fatalf("expected 1 session manifest, got %+v", a.ListSessions())
+		t.Fatalf("expected 1 session manifest, got %+v", listed)
 	}
 }

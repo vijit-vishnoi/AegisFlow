@@ -26,9 +26,9 @@ func (a *AdminAdapter) VerifySession(sessionID string) (interface{}, error) {
 	return Verify(records), nil
 }
 
-func (a *AdminAdapter) ListSessions() interface{} {
+func (a *AdminAdapter) ListSessions() (interface{}, error) {
 	manifest := a.chain.Manifest()
-	return []SessionManifest{manifest}
+	return []SessionManifest{manifest}, nil
 }
 
 func (a *AdminAdapter) RenderReport(sessionID string) (string, error) {

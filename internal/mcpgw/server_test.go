@@ -3,15 +3,24 @@ package mcpgw
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/saivedant169/AegisFlow/internal/approval"
+	"github.com/saivedant169/AegisFlow/internal/envelope"
 	"github.com/saivedant169/AegisFlow/internal/evidence"
 	"github.com/saivedant169/AegisFlow/internal/toolpolicy"
 )
+
+type failingEvidenceRecorder struct{}
+
+func (failingEvidenceRecorder) Record(*envelope.ActionEnvelope) (*evidence.Record, error) {
+	return nil, errors.New("state unavailable")
+}
 
 func TestToolCallAllowed(t *testing.T) {
 	engine := toolpolicy.NewEngine([]toolpolicy.ToolRule{
@@ -100,7 +109,8 @@ func TestToolCallReview(t *testing.T) {
 		{Protocol: "mcp", Tool: "github.create_pr", Decision: "review"},
 	}, "block")
 
-	gw := NewGateway(engine, nil, nil, nil)
+	queue := approval.NewQueue(10)
+	gw := NewGateway(engine, nil, queue, nil)
 
 	reqBody := JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -126,6 +136,21 @@ func TestToolCallReview(t *testing.T) {
 	}
 	if resp.Error.Code != -32002 {
 		t.Fatalf("expected review code -32002, got %d", resp.Error.Code)
+	}
+	data, ok := resp.Error.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected resumable review data, got %#v", resp.Error.Data)
+	}
+	approvalID, _ := data["approval_id"].(string)
+	if approvalID == "" {
+		t.Fatal("expected approval_id in direct HTTP response")
+	}
+	item, err := queue.Get(approvalID)
+	if err != nil {
+		t.Fatalf("approval_id does not identify queued action: %v", err)
+	}
+	if item.Envelope.Tool != "github.create_pr" {
+		t.Fatalf("queued tool = %q, want github.create_pr", item.Envelope.Tool)
 	}
 }
 
@@ -484,6 +509,57 @@ func TestToolCallRecordedInEvidenceChain(t *testing.T) {
 
 	if got := len(chain.Records()); got != 1 {
 		t.Fatalf("expected the blocked tool call to be recorded once, got %d records", got)
+	}
+}
+
+func TestToolCallFailsClosedWhenEvidenceWriteFails(t *testing.T) {
+	engine := toolpolicy.NewEngine([]toolpolicy.ToolRule{
+		{Protocol: "mcp", Tool: "repo.read", Decision: "allow"},
+	}, "block")
+	upstreamCalls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalls++
+		json.NewEncoder(w).Encode(JSONRPCResponse{JSONRPC: "2.0", ID: json.RawMessage(`1`), Result: json.RawMessage(`{}`)})
+	}))
+	defer upstream.Close()
+
+	gw := NewGateway(engine, failingEvidenceRecorder{}, nil, []UpstreamConfig{
+		{Name: "repo", URL: upstream.URL, Tools: []string{"repo.*"}},
+	})
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"repo.read","arguments":{}}}`)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	gw.ServeHTTP(rec, req)
+
+	var response JSONRPCResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error == nil || response.Error.Code != -32004 {
+		t.Fatalf("expected evidence failure -32004, got %+v", response.Error)
+	}
+	if upstreamCalls != 0 {
+		t.Fatalf("upstream called %d times after evidence failure", upstreamCalls)
+	}
+}
+
+func TestToolCallReportsApprovalQueueFailure(t *testing.T) {
+	engine := toolpolicy.NewEngine([]toolpolicy.ToolRule{
+		{Protocol: "mcp", Tool: "repo.write", Decision: "review"},
+	}, "block")
+	queue := approval.NewQueue(0)
+	gw := NewGateway(engine, nil, queue, nil)
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"repo.write","arguments":{}}}`)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	gw.ServeHTTP(rec, req)
+
+	var response JSONRPCResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error == nil || response.Error.Code != -32005 {
+		t.Fatalf("expected approval failure -32005, got %+v", response.Error)
 	}
 }
 

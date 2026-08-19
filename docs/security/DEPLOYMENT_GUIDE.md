@@ -256,39 +256,17 @@ aegisctl evidence verify --all-sessions
 
 ## High Availability
 
-### Stateless API tier
+### Runtime state
 
-AegisFlow's gateway and admin API are stateless. Run multiple replicas behind a load balancer:
-
-```yaml
-# Kubernetes deployment
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: aegisflow
-spec:
-  replicas: 3
-  ...
-```
-
-### Durable approval queue
-
-For HA deployments, use PostgreSQL or Redis as the approval queue backend instead of in-memory:
+Current SQLite backend restores approval and evidence state for one process:
 
 ```yaml
-approval_queue:
-  backend: "postgres"   # or "redis"
+state:
+  enabled: true
+  sqlite_path: "/var/lib/aegisflow/state.db"
 ```
 
-### Evidence chain
-
-Use PostgreSQL with streaming replication for the evidence store:
-
-```yaml
-storage:
-  type: "postgres"
-  dsn_env: "AEGISFLOW_DB_DSN"
-```
+Mount path on persistent volume and set `AEGISFLOW_EVIDENCE_KEY` from secret manager. SQLite mode does not coordinate multiple replicas. Keep one active writer. Shared approval and evidence backend for HA is not implemented.
 
 ---
 

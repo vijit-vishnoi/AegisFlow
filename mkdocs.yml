@@ -67,6 +67,7 @@ nav:
   - MCP security:
       - MCP gateway security: guides/mcp-gateway-security.md
       - Approval workflows: guides/approval-workflows.md
+      - Approval replay test: benchmarks/approval-security.md
       - Tamper-evident audit logs: guides/tamper-evident-audit.md
   - Operate:
       - Architecture: architecture.md

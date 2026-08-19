@@ -265,8 +265,7 @@ func formatUpstreamError(toolName string, upstream *UpstreamConfig, err error) s
 	)
 }
 
-// processToolCall evaluates a tools/call request and returns the response
-// (used by SSE path; the direct path still calls handleToolCall).
+// processToolCall evaluates a tools/call request for direct and SSE transports.
 func (g *Gateway) processToolCall(req *JSONRPCRequest) JSONRPCResponse {
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -287,7 +286,10 @@ func (g *Gateway) processToolCall(req *JSONRPCRequest) JSONRPCResponse {
 	env.PolicyDecision = decision
 	middleware.RecordPolicyDecision(string(decision), string(env.Protocol))
 	if g.evidence != nil {
-		g.evidence.Record(env)
+		if _, err := g.evidence.Record(env); err != nil {
+			log.Printf("[mcpgw] evidence record failed for %s: %v", params.Name, err)
+			return JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: -32004, Message: "evidence recording failed"}}
+		}
 	}
 
 	switch decision {
@@ -310,7 +312,12 @@ func (g *Gateway) processToolCall(req *JSONRPCRequest) JSONRPCResponse {
 		}
 		log.Printf("[mcpgw] REVIEW REQUIRED for tool call: %s", params.Name)
 		if g.approvals != nil {
-			g.approvals.Submit(env)
+			approvalID, err := g.approvals.Submit(env)
+			if err != nil {
+				log.Printf("[mcpgw] approval submission failed for %s: %v", params.Name, err)
+				return JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &JSONRPCError{Code: -32005, Message: "approval queue unavailable"}}
+			}
+			env.ID = approvalID
 		}
 		// Return a resumable contract: the client polls the approval and, once
 		// granted, re-issues the identical call (which hits ConsumeApproval above).
@@ -405,85 +412,9 @@ func (g *Gateway) filterToolsByPolicy(id json.RawMessage, resp JSONRPCResponse) 
 }
 
 func (g *Gateway) handleToolCall(w http.ResponseWriter, req *JSONRPCRequest) {
-	var params ToolCallParams
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		g.writeError(w, req.ID, -32602, "invalid params")
-		return
-	}
-
-	// Build ActionEnvelope
-	env := envelope.NewEnvelope(
-		envelope.ActorInfo{Type: "agent", ID: "mcp-client"},
-		"mcp-session",
-		envelope.ProtocolMCP,
-		params.Name,
-		params.Name, // use tool name as target
-		inferCapability(params.Name),
-	)
-	env.Parameters = params.Arguments
-
-	// Evaluate policy
-	decision := g.policyEngine.Evaluate(env)
-	env.PolicyDecision = decision
-	middleware.RecordPolicyDecision(string(decision), string(env.Protocol))
-
-	// Record in evidence chain
-	if g.evidence != nil {
-		g.evidence.Record(env)
-	}
-
-	switch decision {
-	case envelope.DecisionBlock:
-		log.Printf("[mcpgw] BLOCKED tool call: %s", params.Name)
-		g.writeError(w, req.ID, -32001, "tool call blocked by policy: "+params.Name)
-		return
-
-	case envelope.DecisionReview:
-		// Check if this tool was already approved
-		if g.approvals != nil && g.approvals.ConsumeApprovalForEnvelope(env) {
-			log.Printf("[mcpgw] PREVIOUSLY APPROVED tool call: %s", params.Name)
-			upstream := g.findUpstream(params.Name)
-			if upstream == nil {
-				g.writeError(w, req.ID, -32003, "no upstream configured for tool: "+params.Name)
-				return
-			}
-			resp, err := g.proxyToUpstream(upstream, req)
-			if err != nil {
-				g.writeError(w, req.ID, -32000, formatUpstreamError(params.Name, upstream, err))
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
-			return
-		}
-		log.Printf("[mcpgw] REVIEW REQUIRED for tool call: %s", params.Name)
-		if g.approvals != nil {
-			g.approvals.Submit(env)
-		}
-		g.writeError(w, req.ID, -32002, "tool call requires approval: "+params.Name)
-		return
-
-	case envelope.DecisionAllow:
-		log.Printf("[mcpgw] ALLOWED tool call: %s", params.Name)
-		upstream := g.findUpstream(params.Name)
-		if upstream == nil {
-			g.writeError(w, req.ID, -32003, "no upstream configured for tool: "+params.Name)
-			return
-		}
-
-		resp, err := g.proxyToUpstream(upstream, req)
-		if err != nil {
-			g.writeError(w, req.ID, -32000, formatUpstreamError(params.Name, upstream, err))
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-		return
-
-	default:
-		g.writeError(w, req.ID, -32001, "unknown policy decision")
-	}
+	resp := g.processToolCall(req)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (g *Gateway) handleToolsList(w http.ResponseWriter, req *JSONRPCRequest) {

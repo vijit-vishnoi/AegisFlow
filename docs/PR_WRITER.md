@@ -102,6 +102,14 @@ CLI can handle same queue:
 
 Approval is consumed after matching retry. Changed title, branch, base, repository, actor, or task creates new review.
 
+Restart and replay test uses same HTTP path and records each assertion:
+
+![Approval replay E2E terminal run](assets/approval-security-e2e.gif)
+
+```bash
+make e2e-approval-security
+```
+
 ## Signed evidence
 
 Set stable evidence key before gateway starts:
@@ -110,7 +118,7 @@ Set stable evidence key before gateway starts:
 export AEGISFLOW_EVIDENCE_KEY=<secret-from-key-manager>
 ```
 
-Evidence session registry is memory-only and clears on restart. Export records before shutdown. Stable key keeps signing identity consistent for new process, but does not reload prior sessions. Without configured key, AegisFlow creates ephemeral key.
+Starter installer enables SQLite state under `.aegisflow-run/state.db` and keeps local evidence key in `.aegisflow-run/evidence.key`. For production, load key from secret manager. Without SQLite, approval and evidence state stays in memory.
 
 ```bash
 ./bin/aegisctl evidence sessions

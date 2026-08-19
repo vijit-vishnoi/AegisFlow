@@ -28,6 +28,32 @@ func TestVerifyEmptyChain(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsMissingFirstRecord(t *testing.T) {
+	chain := NewSessionChain("missing-first")
+	if _, err := chain.Record(testEnv("record-1", envelope.DecisionReview)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chain.Record(testEnv("record-2", envelope.DecisionReview)); err != nil {
+		t.Fatal(err)
+	}
+	records := chain.Records()[1:]
+	if result := Verify(records); result.Valid {
+		t.Fatal("chain without its first record passed verification")
+	}
+}
+
+func TestVerifyRejectsChangedRecordIndex(t *testing.T) {
+	chain := NewSessionChain("changed-index")
+	if _, err := chain.Record(testEnv("record-1", envelope.DecisionReview)); err != nil {
+		t.Fatal(err)
+	}
+	records := chain.Records()
+	records[0].Index = 7
+	if result := Verify(records); result.Valid {
+		t.Fatal("chain with changed record index passed verification")
+	}
+}
+
 func TestVerifyDetectsTamperedHash(t *testing.T) {
 	chain := NewSessionChain("s1")
 	chain.Record(testEnv("t1", envelope.DecisionAllow))

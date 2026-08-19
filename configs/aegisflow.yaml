@@ -167,6 +167,12 @@ database:
   enabled: false
   conn_string: "postgres://aegisflow:aegisflow@localhost:5432/aegisflow?sslmode=disable"
 
+# Local restart-safe approval and evidence state. Set AEGISFLOW_EVIDENCE_KEY
+# outside this file before enabling. SQLite supports one running instance.
+state:
+  enabled: false
+  sqlite_path: "data/aegisflow.db"
+
 admin:
   token: ""
 

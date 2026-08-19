@@ -12,6 +12,15 @@ File: `docs/assets/hero-pr-writer.gif`
 - Path: real AegisFlow MCP and admin endpoints against local mock GitHub upstream
 - Decisions: allow, block, review, approve, exact retry, evidence verify
 
+## Approval replay GIF
+
+File: `docs/assets/approval-security-e2e.gif`
+
+- Duration: 9.08 seconds
+- Size: 1084 x 706
+- Source: `scripts/e2e_approval_security.sh` recorded by `scripts/record-approval-security.sh`
+- Path: real binary restart, SQLite restore, exact retry, replay rejection, argument change, evidence verification, altered approval and evidence rejection
+
 ## Screenshots
 
 | File | Content | Status |

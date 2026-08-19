@@ -17,7 +17,10 @@ func NewRegistryAdminAdapter(reg *ChainRegistry) *RegistryAdminAdapter {
 }
 
 func (a *RegistryAdminAdapter) ExportSession(sessionID string) (interface{}, error) {
-	chain := a.reg.get(sessionID)
+	chain, err := a.reg.get(sessionID)
+	if err != nil {
+		return nil, err
+	}
 	if chain == nil {
 		return nil, fmt.Errorf("session %q not found", sessionID)
 	}
@@ -29,7 +32,10 @@ func (a *RegistryAdminAdapter) ExportSession(sessionID string) (interface{}, err
 }
 
 func (a *RegistryAdminAdapter) VerifySession(sessionID string) (interface{}, error) {
-	chain := a.reg.get(sessionID)
+	chain, err := a.reg.get(sessionID)
+	if err != nil {
+		return nil, err
+	}
 	if chain == nil {
 		return nil, fmt.Errorf("session %q not found", sessionID)
 	}
@@ -40,17 +46,23 @@ func (a *RegistryAdminAdapter) VerifySession(sessionID string) (interface{}, err
 	return Verify(chain.Records()), nil
 }
 
-func (a *RegistryAdminAdapter) ListSessions() interface{} {
-	chains := a.reg.all()
+func (a *RegistryAdminAdapter) ListSessions() (interface{}, error) {
+	chains, err := a.reg.all()
+	if err != nil {
+		return nil, err
+	}
 	manifests := make([]SessionManifest, 0, len(chains))
 	for _, c := range chains {
 		manifests = append(manifests, c.Manifest())
 	}
-	return manifests
+	return manifests, nil
 }
 
 func (a *RegistryAdminAdapter) RenderReport(sessionID string) (string, error) {
-	chain := a.reg.get(sessionID)
+	chain, err := a.reg.get(sessionID)
+	if err != nil {
+		return "", err
+	}
 	if chain == nil {
 		return "", fmt.Errorf("session %q not found", sessionID)
 	}
@@ -58,7 +70,10 @@ func (a *RegistryAdminAdapter) RenderReport(sessionID string) (string, error) {
 }
 
 func (a *RegistryAdminAdapter) RenderHTMLReport(sessionID string) (string, error) {
-	chain := a.reg.get(sessionID)
+	chain, err := a.reg.get(sessionID)
+	if err != nil {
+		return "", err
+	}
 	if chain == nil {
 		return "", fmt.Errorf("session %q not found", sessionID)
 	}

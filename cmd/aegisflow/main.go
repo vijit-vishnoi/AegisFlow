@@ -48,6 +48,7 @@ import (
 	"github.com/saivedant169/AegisFlow/internal/rollout"
 	rolloutpg "github.com/saivedant169/AegisFlow/internal/rollout/pgstore"
 	"github.com/saivedant169/AegisFlow/internal/router"
+	"github.com/saivedant169/AegisFlow/internal/state"
 	"github.com/saivedant169/AegisFlow/internal/storage"
 	"github.com/saivedant169/AegisFlow/internal/telemetry"
 	"github.com/saivedant169/AegisFlow/internal/toolpolicy"
@@ -529,16 +530,51 @@ func main() {
 		log.Printf("[init] cost optimization engine enabled")
 	}
 
-	// Evidence — one signed chain per session, so sessions append in parallel
-	// and idle ones are evicted instead of one global chain growing forever.
-	// Records are signed so they can't be quietly rewritten from the store.
-	evidenceRegistry := evidence.NewChainRegistry(loadEvidenceKey())
+	var sqliteState *state.SQLite
+	if cfg.State.Enabled && strings.TrimSpace(os.Getenv("AEGISFLOW_EVIDENCE_KEY")) == "" {
+		log.Fatal("state persistence requires AEGISFLOW_EVIDENCE_KEY so restored evidence keeps the same signing identity")
+	}
+	evidenceKey := loadEvidenceKey()
+	if cfg.State.Enabled {
+		statePath := cfg.State.SQLitePath
+		if override := strings.TrimSpace(os.Getenv("AEGISFLOW_STATE_DB")); override != "" {
+			statePath = override
+		}
+		var err error
+		sqliteState, err = state.OpenSQLite(statePath)
+		if err != nil {
+			log.Fatalf("open runtime state: %v", err)
+		}
+		defer sqliteState.Close()
+		log.Printf("[init] runtime state enabled (sqlite=%s)", sqliteState.Path())
+	}
+
+	// Evidence uses one signed chain per session.
+	var evidenceRegistry *evidence.ChainRegistry
+	if sqliteState != nil {
+		var err error
+		evidenceRegistry, err = evidence.NewPersistentChainRegistry(evidenceKey, sqliteState.DB())
+		if err != nil {
+			log.Fatalf("restore evidence state: %v", err)
+		}
+	} else {
+		evidenceRegistry = evidence.NewChainRegistry(evidenceKey)
+	}
 	defer evidenceRegistry.Close()
 	evidenceAdapter := evidence.NewRegistryAdminAdapter(evidenceRegistry)
 	log.Printf("[init] evidence enabled (per-session signed chains)")
 
 	// Approval queue
-	approvalQueue := approval.NewQueue(1000)
+	var approvalQueue *approval.Queue
+	if sqliteState != nil {
+		var err error
+		approvalQueue, err = approval.NewPersistentQueue(1000, sqliteState.DB(), evidenceKey)
+		if err != nil {
+			log.Fatalf("restore approval state: %v", err)
+		}
+	} else {
+		approvalQueue = approval.NewQueue(1000)
+	}
 	if cfg.ApprovalIntegrations.Timeout > 0 {
 		approvalQueue.Timeout = cfg.ApprovalIntegrations.Timeout
 	}

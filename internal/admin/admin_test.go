@@ -155,10 +155,10 @@ func (s *stubEvidenceProvider) ExportSession(id string) (interface{}, error) {
 func (s *stubEvidenceProvider) VerifySession(id string) (interface{}, error) {
 	return map[string]interface{}{"valid": true, "total_records": 5}, nil
 }
-func (s *stubEvidenceProvider) ListSessions() interface{} {
+func (s *stubEvidenceProvider) ListSessions() (interface{}, error) {
 	return []map[string]interface{}{
 		{"session_id": "sess-1", "total_actions": 3},
-	}
+	}, nil
 }
 func (s *stubEvidenceProvider) RenderReport(id string) (string, error) {
 	if id == "missing" {

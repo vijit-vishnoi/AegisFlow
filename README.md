@@ -153,7 +153,17 @@ Policy files and tuning notes live under [`starter-kit/policies`](starter-kit/po
 ./bin/aegisctl verify --session <session-id>
 ```
 
-Evidence sessions are stored in memory. Export records before gateway shutdown when retention matters. `AEGISFLOW_EVIDENCE_KEY` keeps signing identity stable, but does not restore sessions after restart. Without it, AegisFlow creates an ephemeral key and logs a warning.
+Memory storage remains default. Enable SQLite when approvals and evidence must survive restart:
+
+```yaml
+state:
+  enabled: true
+  sqlite_path: "data/aegisflow.db"
+```
+
+Set `AEGISFLOW_EVIDENCE_KEY` from a secret manager before starting. Same key authenticates approval rows and evidence records while staying outside SQLite. `AEGISFLOW_STATE_DB` can override configured path. SQLite mode supports one running AegisFlow instance; it is not shared state for multiple replicas.
+
+Run restart, replay, changed-argument, and evidence-tamper checks with `make e2e-approval-security`.
 
 ## Release verification
 

@@ -42,6 +42,38 @@ func TestSubmitAndList(t *testing.T) {
 	}
 }
 
+func TestSubmitSnapshotsEnvelope(t *testing.T) {
+	q := NewQueue(100)
+	env := testEnv("github.create_pr")
+	env.Parameters = map[string]any{
+		"labels": []any{"security", map[string]any{"branch": "main"}},
+	}
+	id, err := q.Submit(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Target = "repo/changed"
+	env.Parameters["labels"].([]any)[1].(map[string]any)["branch"] = "changed"
+
+	item, err := q.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Envelope.Target != "repo/main" {
+		t.Fatalf("queued target changed to %q", item.Envelope.Target)
+	}
+	labels := item.Envelope.Parameters["labels"].([]any)
+	if branch := labels[1].(map[string]any)["branch"]; branch != "main" {
+		t.Fatalf("queued branch changed to %v", branch)
+	}
+}
+
+func TestSubmitRejectsNilEnvelope(t *testing.T) {
+	if _, err := NewQueue(100).Submit(nil); err == nil {
+		t.Fatal("nil approval envelope was accepted")
+	}
+}
+
 func TestApprove(t *testing.T) {
 	q := NewQueue(100)
 	env := testEnv("github.create_pr")
@@ -108,6 +140,24 @@ func TestQueueFull(t *testing.T) {
 	_, err := q.Submit(testEnv("t3"))
 	if err == nil {
 		t.Fatal("expected error when queue is full")
+	}
+}
+
+func TestSubmitRejectsDuplicateEnvelopeID(t *testing.T) {
+	q := NewQueue(10)
+	env := testEnv("repo.write")
+	if _, err := q.Submit(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Submit(env); err == nil {
+		t.Fatal("duplicate pending envelope ID was accepted")
+	}
+	id := env.ID
+	if _, err := q.Approve(id, "reviewer", "scope checked"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Submit(env); err == nil {
+		t.Fatal("resolved envelope ID was accepted again")
 	}
 }
 

@@ -17,6 +17,30 @@ func Verify(records []Record) VerifyResult {
 	}
 
 	for i, rec := range records {
+		if rec.Envelope == nil {
+			return VerifyResult{
+				Valid:        false,
+				TotalRecords: len(records),
+				ErrorAtIndex: i,
+				Message:      "record has no envelope",
+			}
+		}
+		if rec.Index != i {
+			return VerifyResult{
+				Valid:        false,
+				TotalRecords: len(records),
+				ErrorAtIndex: i,
+				Message:      "record index mismatch at " + rec.Envelope.ID,
+			}
+		}
+		if i == 0 && rec.PreviousHash != "" {
+			return VerifyResult{
+				Valid:        false,
+				TotalRecords: len(records),
+				ErrorAtIndex: i,
+				Message:      "first record has a previous hash",
+			}
+		}
 		// Recompute hash
 		expected := computeRecordHash(rec)
 		if expected != rec.Hash {

@@ -9,12 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Bearer-token environment variables and Streamable HTTP SSE responses for MCP HTTP upstreams.
+- Optional SQLite persistence for pending approvals, consumed approvals, and signed session evidence.
+- Approval security E2E covering process restart, exact retry, replay, argument changes, and altered evidence.
 
 ### Fixed
 
 - Direct HTTP `tools/list` responses now hide tools blocked by policy.
 - Evidence session exports now return JSON objects instead of quoted base64 data.
-- Evidence retention documentation now states that session registry is memory-only.
+- Gateway tool calls now fail closed when evidence or approval state cannot be written.
+- Evidence verification now rejects missing initial records and changed record indices.
 
 ## [0.9.0] - 2026-08-18
 

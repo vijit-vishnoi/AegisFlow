@@ -95,7 +95,7 @@ type CredentialProvider interface {
 type EvidenceProvider interface {
 	ExportSession(sessionID string) (interface{}, error)
 	VerifySession(sessionID string) (interface{}, error)
-	ListSessions() interface{}
+	ListSessions() (interface{}, error)
 	RenderReport(sessionID string) (string, error)
 	RenderHTMLReport(sessionID string) (string, error)
 }
@@ -772,8 +772,13 @@ func (s *Server) handleEvidenceSessions(w http.ResponseWriter, r *http.Request) 
 	if s.evidenceUnavailable(w) {
 		return
 	}
+	sessions, err := s.evidenceProvider.ListSessions()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.evidenceProvider.ListSessions())
+	json.NewEncoder(w).Encode(sessions)
 }
 
 func (s *Server) handleEvidenceExport(w http.ResponseWriter, r *http.Request) {

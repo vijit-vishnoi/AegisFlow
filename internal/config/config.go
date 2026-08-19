@@ -50,9 +50,16 @@ type Config struct {
 	SupplyChain          SupplyChainConfig         `yaml:"supply_chain"`
 	Resilience           ResilienceConfig          `yaml:"resilience"`
 	MessagesAPI          MessagesAPIConfig         `yaml:"messages_api"`
+	State                StateConfig               `yaml:"state"`
 
 	keyIndexOnce sync.Once                // builds keyIndex on first auth
 	keyIndex     map[[32]byte]TenantMatch // sha256(api key) -> tenant/role
+}
+
+// StateConfig controls local approval and evidence persistence for one process.
+type StateConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	SQLitePath string `yaml:"sqlite_path"`
 }
 
 // MessagesAPIConfig configures the inbound Anthropic /v1/messages endpoint.
@@ -755,6 +762,9 @@ func setDefaults(cfg *Config) {
 	}
 	if cfg.Telemetry.Metrics.Path == "" {
 		cfg.Telemetry.Metrics.Path = "/metrics"
+	}
+	if cfg.State.SQLitePath == "" {
+		cfg.State.SQLitePath = "data/aegisflow.db"
 	}
 	if cfg.Cache.Backend == "" {
 		cfg.Cache.Backend = "memory"

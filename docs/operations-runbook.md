@@ -103,7 +103,7 @@ Snapshots are stored under the configured `resilience.backup_dir`.
 
 ## PostgreSQL Backup
 
-PostgreSQL is optional. It persists audit and usage records. Per-session signed evidence remains memory-only, so export it to durable storage before gateway shutdown.
+PostgreSQL remains optional for audit and usage records. Approval and signed evidence state can use local SQLite through `state.enabled`. Back up SQLite only after stopping AegisFlow or through SQLite-aware snapshot tooling. Copying live database file without WAL files can produce incomplete backup.
 
 Create a dump from the Docker Compose database:
 

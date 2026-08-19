@@ -130,6 +130,10 @@ routes:
     providers: ["mock"]
     strategy: "priority"
 
+state:
+  enabled: true
+  sqlite_path: ".aegisflow-run/state.db"
+
 ${POLICY_BLOCK}
 
 policies:
@@ -159,6 +163,21 @@ mcp_gateway:
 YAML
 pass "wrote configs/pr-writer.yaml"
 
+EVIDENCE_KEY_FILE="$LOG_DIR/evidence.key"
+if [ ! -s "$EVIDENCE_KEY_FILE" ]; then
+    if ! (umask 077; od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]' > "$EVIDENCE_KEY_FILE"); then
+        fail "could not generate evidence signing key"
+        cleanup_fail
+    fi
+fi
+chmod 600 "$EVIDENCE_KEY_FILE"
+EVIDENCE_KEY=$(tr -d '[:space:]' < "$EVIDENCE_KEY_FILE")
+if [ "${#EVIDENCE_KEY}" -ne 64 ]; then
+    fail "invalid evidence signing key"
+    cleanup_fail
+fi
+pass "persistent approval and evidence state"
+
 # ---- 4. Build ----
 hdr "4) Building aegisflow + aegisctl"
 
@@ -180,7 +199,8 @@ pass "bin/aegisctl"
 # ---- 5. Start AegisFlow ----
 hdr "5) Starting AegisFlow"
 
-nohup bin/aegisflow --config configs/pr-writer.yaml \
+nohup env AEGISFLOW_EVIDENCE_KEY="$EVIDENCE_KEY" \
+    bin/aegisflow --config configs/pr-writer.yaml \
     >"$LOG_DIR/aegisflow.log" 2>&1 &
 AEGIS_PID=$!
 echo "$AEGIS_PID" > "$LOG_DIR/aegisflow.pid"

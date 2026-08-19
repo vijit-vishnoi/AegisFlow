@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -34,6 +36,7 @@ type SessionChain struct {
 	records   []Record
 	lastHash  string
 	key       []byte // optional HMAC key; when set, records are signed
+	append    func(Record) error
 }
 
 func NewSessionChain(sessionID string) *SessionChain {
@@ -54,24 +57,77 @@ func NewSignedSessionChain(sessionID string, key []byte) *SessionChain {
 	}
 }
 
+func restoreSessionChain(sessionID string, key []byte, records []Record, appendRecord func(Record) error) (*SessionChain, error) {
+	for i := range records {
+		if records[i].Index != i {
+			return nil, fmt.Errorf("record index %d found at position %d", records[i].Index, i)
+		}
+		if records[i].Envelope == nil {
+			return nil, fmt.Errorf("record %d has no envelope", i)
+		}
+		recordSessionID := records[i].Envelope.Actor.SessionID
+		if recordSessionID == "" {
+			recordSessionID = defaultSessionFallback
+		}
+		if recordSessionID != sessionID {
+			return nil, fmt.Errorf("record %d belongs to session %q, not %q", i, recordSessionID, sessionID)
+		}
+	}
+
+	var result VerifyResult
+	if len(key) > 0 {
+		result = VerifySignatures(records, key)
+	} else {
+		result = Verify(records)
+	}
+	if !result.Valid {
+		return nil, errors.New(result.Message)
+	}
+
+	chain := &SessionChain{
+		sessionID: sessionID,
+		records:   append([]Record(nil), records...),
+		key:       append([]byte(nil), key...),
+		append:    appendRecord,
+	}
+	if len(records) > 0 {
+		chain.lastHash = records[len(records)-1].Hash
+	}
+	return chain, nil
+}
+
 func (c *SessionChain) SessionID() string {
 	return c.sessionID
 }
 
 // Record adds an ActionEnvelope to the chain.
 func (c *SessionChain) Record(env *envelope.ActionEnvelope) (*Record, error) {
+	if env == nil {
+		return nil, errors.New("evidence envelope is required")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	snapshot, err := cloneEnvelope(env)
+	if err != nil {
+		return nil, fmt.Errorf("copy evidence envelope: %w", err)
+	}
 
 	rec := Record{
 		Index:        len(c.records),
 		Timestamp:    time.Now().UTC(),
-		Envelope:     env,
+		Envelope:     snapshot,
 		PreviousHash: c.lastHash,
 	}
 	rec.Hash = computeRecordHash(rec)
 	if len(c.key) > 0 {
 		rec.Signature = signHash(c.key, rec.Hash)
+	}
+	rec.Envelope.EvidenceHash = rec.Hash
+	if c.append != nil {
+		if err := c.append(rec); err != nil {
+			return nil, fmt.Errorf("persist evidence record: %w", err)
+		}
 	}
 	c.lastHash = rec.Hash
 	c.records = append(c.records, rec)
@@ -80,6 +136,89 @@ func (c *SessionChain) Record(env *envelope.ActionEnvelope) (*Record, error) {
 	env.EvidenceHash = rec.Hash
 
 	return &rec, nil
+}
+
+func cloneEnvelope(env *envelope.ActionEnvelope) (*envelope.ActionEnvelope, error) {
+	snapshot := *env
+	parameters, err := cloneParameters(env.Parameters)
+	if err != nil {
+		return nil, err
+	}
+	snapshot.Parameters = parameters
+	if env.Resource != nil {
+		resourceCopy := *env.Resource
+		resourceCopy.Path = append([]string(nil), env.Resource.Path...)
+		if env.Resource.Properties != nil {
+			resourceCopy.Properties = make(map[string]string, len(env.Resource.Properties))
+			for key, value := range env.Resource.Properties {
+				resourceCopy.Properties[key] = value
+			}
+		}
+		snapshot.Resource = &resourceCopy
+	}
+	if env.Result != nil {
+		resultCopy := *env.Result
+		snapshot.Result = &resultCopy
+	}
+	return &snapshot, nil
+}
+
+func cloneParameters(parameters map[string]any) (map[string]any, error) {
+	if parameters == nil {
+		return nil, nil
+	}
+	cloned := make(map[string]any, len(parameters))
+	for key, value := range parameters {
+		copy, err := cloneParameter(value)
+		if err != nil {
+			return nil, fmt.Errorf("parameter %q: %w", key, err)
+		}
+		cloned[key] = copy
+	}
+	return cloned, nil
+}
+
+func cloneParameter(value any) (any, error) {
+	switch typed := value.(type) {
+	case nil, bool, string,
+		float32, float64,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		json.Number:
+		return typed, nil
+	case []byte:
+		return append([]byte(nil), typed...), nil
+	case []string:
+		return append([]string(nil), typed...), nil
+	case []any:
+		cloned := make([]any, len(typed))
+		for index, item := range typed {
+			copy, err := cloneParameter(item)
+			if err != nil {
+				return nil, err
+			}
+			cloned[index] = copy
+		}
+		return cloned, nil
+	case map[string]string:
+		cloned := make(map[string]string, len(typed))
+		for key, item := range typed {
+			cloned[key] = item
+		}
+		return cloned, nil
+	case map[string]any:
+		return cloneParameters(typed)
+	default:
+		data, err := json.Marshal(typed)
+		if err != nil {
+			return nil, err
+		}
+		var cloned any
+		if err := json.Unmarshal(data, &cloned); err != nil {
+			return nil, err
+		}
+		return cloned, nil
+	}
 }
 
 // Records returns all records in order.

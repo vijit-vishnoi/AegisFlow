@@ -508,6 +508,12 @@ approval_integrations:
     enabled: false
     webhook_url: ""              # Slack incoming webhook URL
 
+# Local restart-safe approval and evidence state. Keep signing key outside
+# this database through AEGISFLOW_EVIDENCE_KEY. Not for multiple replicas.
+state:
+  enabled: false
+  sqlite_path: "data/aegisflow.db"
+
 # Enterprise Identity — org/team/project hierarchy with separation of duties
 identity:
   enabled: true
