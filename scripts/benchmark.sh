@@ -20,6 +20,8 @@ MOCK_LOG="$TMP_DIR/mock-provider.log"
 GATEWAY_LOG="$TMP_DIR/aegisflow.log"
 PAYLOAD_FILE="$TMP_DIR/payload.json"
 CSV_FILE="$TMP_DIR/benchmark.csv"
+MOCK_BIN="$TMP_DIR/mock-provider"
+GATEWAY_BIN="$TMP_DIR/aegisflow"
 
 cleanup() {
   if [[ -n "${GATEWAY_PID:-}" ]]; then
@@ -75,16 +77,13 @@ cat >"$PAYLOAD_FILE" <<'JSON'
 }
 JSON
 
-(
-  cd "$ROOT_DIR"
-  go run ./scripts/mock_provider.go -listen 127.0.0.1:18080 -latency 25ms >"$MOCK_LOG" 2>&1
-) &
+(cd "$ROOT_DIR" && go build -o "$MOCK_BIN" ./scripts/mock_provider.go)
+(cd "$ROOT_DIR" && go build -o "$GATEWAY_BIN" ./cmd/aegisflow)
+
+"$MOCK_BIN" -listen 127.0.0.1:18080 -latency 25ms >"$MOCK_LOG" 2>&1 &
 MOCK_PID=$!
 
-(
-  cd "$ROOT_DIR"
-  go run ./cmd/aegisflow --config configs/benchmark.yaml >"$GATEWAY_LOG" 2>&1
-) &
+"$GATEWAY_BIN" --config "$ROOT_DIR/configs/benchmark.yaml" >"$GATEWAY_LOG" 2>&1 &
 GATEWAY_PID=$!
 
 wait_for_http "http://127.0.0.1:18080/health"
