@@ -48,6 +48,10 @@ func (s *verifyOnlyAuditProvider) Verify() (interface{}, error) {
 func (s *verifyOnlyAuditProvider) Log(actor, actorRole, action, resource, detail, tenantID, model string) {
 }
 
+func (s *verifyOnlyAuditProvider) LatestTimestamp() (string, error) {
+	return "2026-08-20T22:00:00Z", nil
+}
+
 func newFullAdminServer() *Server {
 	srv := newIntegrationAdminServer()
 	srv.approvalProvider = &stubApprovalProvider{
@@ -202,6 +206,7 @@ func (s *stubCredentialProvider) RevokeCredential(id string) error {
 func (s *stubCredentialProvider) IssueCredential(providerName, taskID, target, capability, envelopeID string) (interface{}, error) {
 	return map[string]interface{}{"id": "cred-new"}, nil
 }
+func (s *stubCredentialProvider) ActiveCredentialCount() int { return 0 }
 
 type stubManifestProvider struct{}
 
@@ -1327,5 +1332,48 @@ func TestPolicyVersionRollbackEndpoint(t *testing.T) {
 	}
 	if body["status"] != "ok" || body["rolled_back_to"] != float64(1) {
 		t.Fatalf("unexpected rollback response: %+v", body)
+	}
+}
+
+type emptyAuditProvider struct{}
+
+func (e *emptyAuditProvider) Query(actor, actorRole, action, tenantID string, limit int) (interface{}, error) {
+	return []any{}, nil
+}
+func (e *emptyAuditProvider) Verify() (interface{}, error) { return nil, nil }
+func (e *emptyAuditProvider) Log(actor, actorRole, action, resource, detail, tenantID, model string) {
+}
+func (e *emptyAuditProvider) LatestTimestamp() (string, error) { return "", nil }
+
+func TestHandleSystemStatus_UnavailableStates(t *testing.T) {
+	server := newIntegrationAdminServer()
+	server.credentialProvider = nil
+	server.auditProvider = &emptyAuditProvider{}
+	server.cfg.MCPGateway.Enabled = false
+
+	router := server.Router()
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/status", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var body map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	if body["active_credentials"] != float64(0) {
+		t.Errorf("expected 0 active_credentials, got %v", body["active_credentials"])
+	}
+	if body["latest_audit_timestamp"] != "" {
+		t.Errorf("expected \"\" latest_audit_timestamp, got %v", body["latest_audit_timestamp"])
+	}
+	if body["mcp_gateway"] != "disabled" {
+		t.Errorf("expected disabled mcp_gateway, got %v", body["mcp_gateway"])
+	}
+	if _, exists := body["loaded_policy_pack"]; exists {
+		t.Errorf("expected loaded_policy_pack to be removed, got %v", body["loaded_policy_pack"])
 	}
 }
