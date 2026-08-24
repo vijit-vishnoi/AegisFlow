@@ -55,6 +55,12 @@ type Handler struct {
 	semanticCache        *cache.SemanticCache
 	behavioralRegistry   *behavioral.Registry
 	messagesToolsEnabled bool
+	requestValidation    bool
+}
+
+// SetRequestValidation configures whether schema validation is enforced on incoming requests.
+func (h *Handler) SetRequestValidation(enabled bool) {
+	h.requestValidation = enabled
 }
 
 // SetMessagesToolPassthrough enables tool translation on the /v1/messages
@@ -189,18 +195,23 @@ func (h *Handler) SetEval(builtinEnabled bool, minTokens int, latencyMul float64
 
 func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
-	var req types.ChatCompletionRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, h.maxBodySize)).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "failed to parse request body")
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, h.maxBodySize))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "failed to read request body")
 		return
 	}
 
-	if req.Model == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "model is required")
-		return
+	if h.requestValidation {
+		if msg, param, code, vErr := validateRequest(bodyBytes, chatCompletionSchema); vErr != nil {
+			writeValidationError(w, code, param, msg)
+			return
+		}
 	}
-	if len(req.Messages) == 0 {
-		writeError(w, http.StatusBadRequest, "invalid_request", "messages is required")
+
+	var req types.ChatCompletionRequest
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "failed to parse request body")
 		return
 	}
 
@@ -433,4 +444,19 @@ func writeError(w http.ResponseWriter, code int, errType, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(types.NewErrorResponse(code, errType, message))
+}
+
+func writeValidationError(w http.ResponseWriter, code, param, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+
+	errResp := types.NewErrorResponse(http.StatusBadRequest, "invalid_request_error", message)
+	if code != "" {
+		errResp.Error.ErrorCode = code
+	}
+	if param != "" {
+		errResp.Error.Param = param
+	}
+
+	json.NewEncoder(w).Encode(errResp)
 }
