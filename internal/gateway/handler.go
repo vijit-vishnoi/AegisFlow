@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"log"
@@ -56,11 +57,19 @@ type Handler struct {
 	behavioralRegistry   *behavioral.Registry
 	messagesToolsEnabled bool
 	requestValidation    bool
+	compressionEnabled   bool
+	compressionMinBytes  int
 }
 
 // SetRequestValidation configures whether schema validation is enforced on incoming requests.
 func (h *Handler) SetRequestValidation(enabled bool) {
 	h.requestValidation = enabled
+}
+
+// SetCompression configures payload compression.
+func (h *Handler) SetCompression(enabled bool, minSizeBytes int) {
+	h.compressionEnabled = enabled
+	h.compressionMinBytes = minSizeBytes
 }
 
 // SetMessagesToolPassthrough enables tool translation on the /v1/messages
@@ -196,9 +205,25 @@ func (h *Handler) SetEval(builtinEnabled bool, minTokens int, latencyMul float64
 func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
-	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, h.maxBodySize))
+	var bodyReader io.Reader = r.Body
+	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+		gr, err := gzip.NewReader(r.Body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "invalid gzip body")
+			return
+		}
+		defer gr.Close()
+		bodyReader = gr
+	}
+
+	limitReader := io.LimitReader(bodyReader, h.maxBodySize+1)
+	bodyBytes, err := io.ReadAll(limitReader)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "failed to read request body")
+		return
+	}
+	if int64(len(bodyBytes)) > h.maxBodySize {
+		writeError(w, http.StatusBadRequest, "invalid_request", "request body too large")
 		return
 	}
 
@@ -241,7 +266,7 @@ func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-AegisFlow-Cache", cacheStatus)
 		h.logRequest(startTime, r, tenantID, req.Model, cacheSourceName(cacheStatus), http.StatusOK, cachedResp.Usage.TotalTokens, true, "")
-		json.NewEncoder(w).Encode(cachedResp)
+		h.encodeResponse(w, r, cachedResp)
 		return
 	}
 
@@ -269,7 +294,25 @@ func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-AegisFlow-Cache", "MISS")
-	json.NewEncoder(w).Encode(resp)
+	h.encodeResponse(w, r, resp)
+}
+
+func (h *Handler) encodeResponse(w http.ResponseWriter, r *http.Request, resp any) {
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server_error", "failed to marshal response")
+		return
+	}
+
+	if h.compressionEnabled && len(respBytes) >= h.compressionMinBytes && strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Vary", "Accept-Encoding")
+		gw := gzip.NewWriter(w)
+		defer gw.Close()
+		gw.Write(respBytes)
+	} else {
+		w.Write(respBytes)
+	}
 }
 
 func (h *Handler) handleStream(w http.ResponseWriter, rc requestContext, req *types.ChatCompletionRequest) {
