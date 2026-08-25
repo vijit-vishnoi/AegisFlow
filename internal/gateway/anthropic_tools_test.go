@@ -95,7 +95,9 @@ func TestWriteAnthropicMessage_EmitsToolUse(t *testing.T) {
 		}},
 		Usage: types.Usage{PromptTokens: 5, CompletionTokens: 3},
 	}
-	writeAnthropicMessage(w, "claude-x", resp)
+	h := setupTestHandler()
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	h.writeAnthropicMessage(w, r, "claude-x", resp)
 
 	var out anthropicMessagesResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
@@ -124,7 +126,9 @@ func TestWriteAnthropicMessage_TextOnly(t *testing.T) {
 	resp := &types.ChatCompletionResponse{
 		Choices: []types.Choice{{FinishReason: "stop", Message: types.Message{Role: "assistant", Content: "hi there"}}},
 	}
-	writeAnthropicMessage(w, "claude-x", resp)
+	h := setupTestHandler()
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	h.writeAnthropicMessage(w, r, "claude-x", resp)
 	var out anthropicMessagesResponse
 	json.Unmarshal(w.Body.Bytes(), &out)
 	if out.StopReason != "end_turn" {

@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"regexp"
@@ -265,8 +264,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 	r = r.WithContext(context.WithValue(r.Context(), anthropicVersionKey, version))
 
+	bodyBytes, err := readRequestBody(r, h.maxBodySize)
+	if err != nil {
+		writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 	var in anthropicMessagesRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, h.maxBodySize)).Decode(&in); err != nil {
+	if err := json.Unmarshal(bodyBytes, &in); err != nil {
 		writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "failed to parse request body")
 		return
 	}
@@ -316,7 +320,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	cachedResp, cacheStatus, semanticEmbedding, hit := h.lookupCache(rc, req)
 	if hit {
 		h.logRequest(startTime, r, tenantID, req.Model, cacheSourceName(cacheStatus), http.StatusOK, cachedResp.Usage.TotalTokens, true, "")
-		writeAnthropicMessage(w, in.Model, cachedResp)
+		h.writeAnthropicMessage(w, r, in.Model, cachedResp)
 		return
 	}
 
@@ -343,12 +347,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// usage + analytics + logRequest. Reuses the lookup embedding for the store.
 	h.postResponseGovernance(rc, req, resp, providerName, routed.Region, semanticEmbedding)
 
-	writeAnthropicMessage(w, in.Model, resp)
+	h.writeAnthropicMessage(w, r, in.Model, resp)
 }
 
 // writeAnthropicMessage serializes an internal ChatCompletionResponse as an
 // Anthropic Messages envelope. Shared by the live and cache-hit response paths.
-func writeAnthropicMessage(w http.ResponseWriter, model string, resp *types.ChatCompletionResponse) {
+func (h *Handler) writeAnthropicMessage(w http.ResponseWriter, r *http.Request, model string, resp *types.ChatCompletionResponse) {
 	content := ""
 	finishReason := ""
 	var toolCalls []types.ToolCall
@@ -390,7 +394,7 @@ func writeAnthropicMessage(w http.ResponseWriter, model string, resp *types.Chat
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(out)
+	h.encodeResponse(w, r, out)
 }
 
 // CountTokens handles POST /v1/messages/count_tokens. The Anthropic SDK and
@@ -398,8 +402,13 @@ func writeAnthropicMessage(w http.ResponseWriter, model string, resp *types.Chat
 // upstream tokenizer, so it returns a byte-based estimate; the value is
 // advisory. Response shape: {"input_tokens": N}.
 func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
+	bodyBytes, err := readRequestBody(r, h.maxBodySize)
+	if err != nil {
+		writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
 	var in anthropicMessagesRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, h.maxBodySize)).Decode(&in); err != nil {
+	if err := json.Unmarshal(bodyBytes, &in); err != nil {
 		writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "failed to parse request body")
 		return
 	}
@@ -410,7 +419,7 @@ func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
 	req := translateMessagesRequest(&in, false)
 	tokens := estimateTokens(extractContent(req.Messages))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"input_tokens": tokens})
+	h.encodeResponse(w, r, map[string]int{"input_tokens": tokens})
 }
 
 // writeSSE writes one Anthropic SSE event (named event + JSON data) and flushes.

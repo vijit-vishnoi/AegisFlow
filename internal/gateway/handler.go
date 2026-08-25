@@ -3,6 +3,7 @@ package gateway
 import (
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -202,28 +203,34 @@ func (h *Handler) SetEval(builtinEnabled bool, minTokens int, latencyMul float64
 	h.evalWebhook = webhook
 }
 
-func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
-	startTime := time.Now()
-
+func readRequestBody(r *http.Request, maxBodySize int64) ([]byte, error) {
 	var bodyReader io.Reader = r.Body
 	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 		gr, err := gzip.NewReader(r.Body)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "invalid gzip body")
-			return
+			return nil, fmt.Errorf("invalid gzip body: %w", err)
 		}
 		defer gr.Close()
 		bodyReader = gr
 	}
 
-	limitReader := io.LimitReader(bodyReader, h.maxBodySize+1)
+	limitReader := io.LimitReader(bodyReader, maxBodySize+1)
 	bodyBytes, err := io.ReadAll(limitReader)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "failed to read request body")
-		return
+		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
-	if int64(len(bodyBytes)) > h.maxBodySize {
-		writeError(w, http.StatusBadRequest, "invalid_request", "request body too large")
+	if int64(len(bodyBytes)) > maxBodySize {
+		return nil, fmt.Errorf("request body too large")
+	}
+	return bodyBytes, nil
+}
+
+func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+
+	bodyBytes, err := readRequestBody(r, h.maxBodySize)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
@@ -308,8 +315,12 @@ func (h *Handler) encodeResponse(w http.ResponseWriter, r *http.Request, resp an
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Vary", "Accept-Encoding")
 		gw := gzip.NewWriter(w)
-		defer gw.Close()
-		gw.Write(respBytes)
+		if _, err := gw.Write(respBytes); err != nil {
+			log.Printf("encodeResponse: failed to write gzip body: %v", err)
+		}
+		if err := gw.Close(); err != nil {
+			log.Printf("encodeResponse: failed to close gzip writer: %v", err)
+		}
 	} else {
 		w.Write(respBytes)
 	}
