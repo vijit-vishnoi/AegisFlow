@@ -10,6 +10,9 @@ server:
   write_timeout: 120s           # HTTP write timeout (long for streaming)
   graceful_shutdown: 10s        # Graceful shutdown timeout
   max_body_size: 10485760       # Max request body size in bytes (10MB)
+  compression:
+    enabled: true               # Enable gzip compression
+    min_size_bytes: 1024        # Min response size to compress
 
 # Provider definitions
 # Each provider needs a unique name and a type.

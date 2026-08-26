@@ -56,6 +56,11 @@ type Config struct {
 	keyIndex     map[[32]byte]TenantMatch // sha256(api key) -> tenant/role
 }
 
+type CompressionConfig struct {
+	Enabled      bool `yaml:"enabled"`
+	MinSizeBytes int  `yaml:"min_size_bytes"`
+}
+
 // StateConfig controls local approval and evidence persistence for one process.
 type StateConfig struct {
 	Enabled    bool   `yaml:"enabled"`
@@ -490,15 +495,16 @@ type CostOptConfig struct {
 }
 
 type ServerConfig struct {
-	Host              string        `yaml:"host"`
-	Port              int           `yaml:"port"`
-	AdminPort         int           `yaml:"admin_port"`
-	ReadTimeout       time.Duration `yaml:"read_timeout"`
-	WriteTimeout      time.Duration `yaml:"write_timeout"`
-	GracefulShutdown  time.Duration `yaml:"graceful_shutdown"`
-	MaxBodySize       int64         `yaml:"max_body_size"`
-	CORS              CORSConfig    `yaml:"cors"`
-	RequestValidation bool          `yaml:"request_validation"`
+	Host              string            `yaml:"host"`
+	Port              int               `yaml:"port"`
+	AdminPort         int               `yaml:"admin_port"`
+	ReadTimeout       time.Duration     `yaml:"read_timeout"`
+	WriteTimeout      time.Duration     `yaml:"write_timeout"`
+	GracefulShutdown  time.Duration     `yaml:"graceful_shutdown"`
+	MaxBodySize       int64             `yaml:"max_body_size"`
+	CORS              CORSConfig        `yaml:"cors"`
+	RequestValidation bool              `yaml:"request_validation"`
+	Compression       CompressionConfig `yaml:"compression"`
 }
 
 type CORSConfig struct {
